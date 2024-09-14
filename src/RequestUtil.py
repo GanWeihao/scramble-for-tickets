@@ -6,6 +6,7 @@ import random, string
 from requests_toolbelt import MultipartEncoder
 
 from src.Logging import Logging
+from src.OtherUtils import multipart_form_data
 
 logger = Logging(__name__).get_logger()
 
@@ -63,10 +64,11 @@ class RequestUtil:
                     logger.info("------响应报文：%s------" % res)
                     return res
                 elif content_type == 'multipart/form-data':
-
-                    # logger.info("------FORM表单请求参数：%s------" % param)
-                    headers['Content-Type'] = param.content_type
-                    res = requests.post(url=url, data=param, headers=headers).json()
+                    boundary = '----WebKitFormBoundary' \
+                               + ''.join(random.sample(string.ascii_letters + string.digits, 16))
+                    headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
+                    args_str = multipart_form_data(param, boundary, headers)
+                    res = requests.post(url=url, data=args_str, headers=headers).json()
                     logger.info("------响应报文：%s------" % res)
                     return res
                 else:
@@ -76,44 +78,25 @@ class RequestUtil:
         except Exception as e:
             print("http请求报错:{0}".format(e))
 
-def make_multipart_encode_fields(parameters):
-    """
-    用于生成multipart_encoder 的fields字段
-    :return fields: multipart_encoder 的fields字段
-    """
-    # parameters = {'data': {
-    #     "username": "test",
-    #     "password": "123456"}
-    # }
-    fields = parameters
-    if fields is None or fields == {}:
-        return fields
-    else:
-        for item in fields.items():
-            # 字典类型转为Json
-            if isinstance(item[1], dict):
-                fields[item[0]] = json.dumps(item[1])
-    return fields
-
 
 if __name__ == '__main__':
     param = {
-            "typeOfTransportation": '1',
-            "reservationId": '48429722-9821-443e-b09e-36c40b4942c3',
-            "vehicles": [{
-                "id": 'cb762c05-a95f-4265-b933-5f5c8aac204b',
-                "regNumber": 'AU9766',
-                "vehicleType": '3',
-                "subType": '1',
-                "status": '1',
-                "scanDoc": [{
-                    "name": '16fb321b-af24-43d0-a881-22e8574b0fe6.png',
-                    "path": '16fb321b-af24-43d0-a881-22e8574b0fe6.png',
-                    "size": '697462',
-                    "createdAt": '0001-01-01T00:00:00'
-                }]
+        "typeOfTransportation": '1',
+        "reservationId": '48429722-9821-443e-b09e-36c40b4942c3',
+        "vehicles": [{
+            "id": 'cb762c05-a95f-4265-b933-5f5c8aac204b',
+            "regNumber": 'AU9766',
+            "vehicleType": '3',
+            "subType": '1',
+            "status": '1',
+            "scanDoc": [{
+                "name": '16fb321b-af24-43d0-a881-22e8574b0fe6.png',
+                "path": '16fb321b-af24-43d0-a881-22e8574b0fe6.png',
+                "size": '697462',
+                "createdAt": '0001-01-01T00:00:00'
             }]
-        }
+        }]
+    }
     UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
     Sec_Ch_Ua = '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"'
     headers = {
@@ -133,12 +116,7 @@ if __name__ == '__main__':
     }
     boundary = '----WebKitFormBoundary' \
                + ''.join(random.sample(string.ascii_letters + string.digits, 16))
-    # 将 JSON 数据转换为字符串
-    json_data = {
-        'payload': (None, json.dumps(param), 'application/json')
-    }
-    # json_data = {"json": (None, str(param), 'application/json')}
-    print(json_data)
+    print(boundary)
 
     requestUtil = RequestUtil()
     cookies = requestUtil.load_cookie('1')
@@ -150,5 +128,7 @@ if __name__ == '__main__':
     print(joined_cookies)
     headers['Cookie'] = joined_cookies
     headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
-    res = requests.post(url='https://eopp.epd-portal.ru/reservations-api/v1/UpdateDraftStepTwo', data=str(param), headers=headers)
+    args_str = multipart_form_data(param, boundary, headers)
+    res = requests.post(url='https://eopp.epd-portal.ru/reservations-api/v1/UpdateDraftStepTwo', data=args_str,
+                        headers=headers)
     logger.info("------响应报文：%s------" % res)

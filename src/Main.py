@@ -1,13 +1,13 @@
+import concurrent.futures
 import configparser
 import datetime
 import json
 import os
 import pickle
-import random
-import string
+import sys
+import threading
 import time
 
-from requests_toolbelt import MultipartEncoder
 from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
@@ -31,6 +31,14 @@ HEIGHT = 1280
 PIXEL_RATIO = 3.0
 UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
 Sec_Ch_Ua = '"Chromium";v="128", "Not;A=Brand";v="24", "Google Chrome";v="128"'
+
+if sys.platform.startswith("win"):
+    print("当前系统是Windows")
+elif sys.platform.startswith("darwin"):
+    print("当前系统是Mac OS")
+    UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+else:
+    print("当前系统是其他操作系统")
 
 headers = {
     'User-Agent': UA,
@@ -62,7 +70,12 @@ class Task(object):
         self.login_url = cfg.get("web_info", "login_url").strip()
         # 浏览器驱动信息
         self.driver_path = cfg.get("other", "driver_path").strip()
-        self.driver_path_chromedriver_v128 = cfg.get("other", "driver_path_chromedriver_v128").strip()
+        # 浏览器驱动
+        if sys.platform.startswith("darwin"):
+            self.chromedriver = cfg.get("other", "driver_path_mac").strip()
+        else:
+            self.chromedriver = cfg.get("other", "driver_path_chromedriver_v128").strip()
+
         # 调用方法, 初始化浏览器信息
         self.init_browser()
 
@@ -92,11 +105,11 @@ class Task(object):
                            "userAgent": UA}
         self.chrome_options.add_experimental_option("mobileEmulation", mobileEmulation)
 
-    '''user_type: 0测试账号，1真实账号'''
+    """user_type: 0测试账号，1真实账号"""
 
     def get_cookie(self, user_type="0"):
         try:
-            self.driver = webdriver.Chrome(executable_path=self.driver_path_chromedriver_v128,
+            self.driver = webdriver.Chrome(executable_path=self.chromedriver,
                                            options=self.chrome_options,
                                            keep_alive=True)  # 此项稳定版打开
             with open('../stealth.min.js') as f:
@@ -152,9 +165,9 @@ class Task(object):
             logger.exception(e)
             raise e
 
-    '''余票监测'''
+    """余票监测"""
 
-    def timeslot_check(self, date=None, time_str=None, stime='00:00', etime='23:59'):
+    def timeslot_check(self, date=None, time_str=None):
         self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "timeslot_registry_url").strip()
@@ -162,8 +175,8 @@ class Task(object):
             'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
             'startDate': date,
             'endDate': date,
-            'startTime': stime,
-            'endTime': etime,
+            'startTime': '00:00',
+            'endTime': '23:59',
             'pageIndex': 1,
             'pageSize': 100
         }
@@ -181,20 +194,23 @@ class Task(object):
         for idx in range(len(res['capacities'])):
             slot = res['capacities'][idx]
             if time_str is not None:
-                slotTime = slot['slotTime'].replace(" ", "")
-                if slotTime[0:4] == time_str and int(slot['capacityPortal']['free']):
+                slot_time = slot['slotTime'].replace(" ", "")
+                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:4] == time_str and int(slot['capacityPortal']['free']) > 0}')
+                if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
                     result['intervalIndex'] = idx
                     return result
             else:
+                slot_time = slot['slotTime'].replace(" ", "")
+                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:4] == time_str and int(slot['capacityPortal']['free']) > 0}')
                 if int(slot['capacityPortal']['free']) > 0:
                     result['intervalIndex'] = idx
                     return result
         # 延迟1秒执行，防止被墙
-        time.sleep(1)
+        time.sleep(2)
         # 如果没有符合条件的，则迭代调用，直到刷出余票
-        return self.timeslot_check(date, time)
+        return self.timeslot_check(date, time_str)
 
-    '''获取用户信息'''
+    """获取用户信息"""
 
     def get_user_info(self):
         self.ckeck_cookie()
@@ -213,7 +229,7 @@ class Task(object):
                                   user_type='1')
         self.user_info = res
 
-    '''获取图片验证码'''
+    """获取图片验证码"""
     def create_captcha(self):
         self.ckeck_cookie()
 
@@ -232,15 +248,13 @@ class Task(object):
             'captachaInputText': get_code_new(res['fileContents'])
         }
 
-    '''生成草稿订单'''
-    def create_draft(self, arrival, regNumber=None):
+    """生成草稿订单"""
+    def create_draft(self, regNumber=None):
         self.ckeck_cookie()
 
         if regNumber is None:
             logger.exception('请填写车牌号')
             return
-
-        self.create_captcha()
 
         request_url = cfg.get("web_info", "create_draft_url").strip()
         param = {
@@ -265,26 +279,35 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         if res['isSuccess']:
-            logger.info("订单创建成功")
-            self.search_vehicles(regNumber)
+            logger.info("草稿订单创建成功")
+
+            # 创建线程列表
+            threads = []
+            # 创建获取验证码并启动线程
+            t1 = threading.Thread(target=self.create_captcha)
+            threads.append(t1)
+            t1.start()
+
+            # 创建查询车辆信息并启动线程
+            t2 = threading.Thread(target=self.search_vehicles, args=(regNumber,))
+            threads.append(t2)
+            t2.start()
+
+            # 等待所有线程完成
+            for t in threads:
+                t.join()
+
             reservationRequestId = res['entity']['reservationRequestId']
             # 更新车辆信息
             self.update_draft(reservationRequestId)
-            # 提交订单
-            isSuccess = self.submit_draft_url(arrival, reservationRequestId)
-            if isSuccess:
-                return
-
-            # 上述暂无余票，重新检查余票情况
-            arrival_new = self.available_slots(arrival)
-            if arrival_new is not None:
-                isSuccess = self.submit_draft_url(arrival_new, reservationRequestId)
+            logger.info("订单准备完成")
+            return reservationRequestId
         else:
             # 请求失败，2秒后重试
             time.sleep(2)
-            self.create_draft()
+            self.create_draft(regNumber)
 
-    '''查询车辆信息，regNumber-车牌号'''
+    """查询车辆信息，regNumber-车牌号"""
     def search_vehicles(self, regNumber=None):
         self.ckeck_cookie()
 
@@ -311,7 +334,7 @@ class Task(object):
 
         raise ValueError('车辆不存在或车辆状态不可用')
 
-    '''更新车辆信息'''
+    """更新车辆信息"""
     def update_draft(self, reservationId=None):
         self.ckeck_cookie()
 
@@ -320,29 +343,23 @@ class Task(object):
             return
 
         request_url = cfg.get("web_info", "update_draft_url").strip()
-        param = MultipartEncoder(
-            fields={
+        param = {
                 "typeOfTransportation": '1',
                 "reservationId": str(reservationId),
-                "vehicles": json.dumps([{
+                "vehicles": [{
                     "id": self.vehicle['id'],
                     "regNumber": self.vehicle['regNumber'],
                     "vehicleType": str(self.vehicle['vehicleType']),
                     "subType": str(self.vehicle['subType']),
                     "status": str(self.vehicle['status']),
-                    "scanDoc": json.dumps([{
+                    "scanDoc": [{
                         "name": self.vehicle['scanDoc'][0]['name'],
                         "path": self.vehicle['scanDoc'][0]['path'],
                         "size": str(self.vehicle['scanDoc'][0]['size']),
                         "createdAt": self.vehicle['scanDoc'][0]['createdAt']
-                    }])
-                }])
+                    }]
+                }]
             }
-        )
-        boundary = '----WebKitFormBoundary' \
-                   + ''.join(random.sample(string.ascii_letters + string.digits, 16))
-        m = MultipartEncoder(fields=param, boundary=boundary)
-
         headers_temp = headers
         headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
         res = requestUtil.request(url=request_url,
@@ -356,7 +373,7 @@ class Task(object):
         else:
             raise RuntimeError(f"更新车辆信息失败【{res['errorMessage']}】")
 
-    '''提交订单'''
+    """提交订单"""
     def submit_draft_url(self, arrival, reservationId):
         self.ckeck_cookie()
 
@@ -389,8 +406,37 @@ class Task(object):
             logger.info("订单提交失败")
             return False
 
+    """改签订单"""
+    def reschedule(self, arrival, reservationId):
+        self.ckeck_cookie()
 
-    '''查询余票情况'''
+        request_url = cfg.get("web_info", "reschedule_url").strip()
+        param = {
+            "reservationRequestId": reservationId,
+            "timeslot": build_timeslot(arrival),
+            "date": arrival['arrivalDatePlan'],
+            "captachaInputText": self.captcha['captachaInputText'],
+            "captachaHash": self.captcha['captachaHash'],
+            "transportType": 1,
+            "intervalIndex": arrival['intervalIndex'],
+            "facilityId": "1dae5b1c-e2b3-44a4-848f-df8ce2ddde42"
+        }
+        headers_temp = headers
+        headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
+        res = requestUtil.request(url=request_url,
+                                  method='post',
+                                  headers=headers_temp,
+                                  param=param,
+                                  content_type='application/json',
+                                  user_type='1')
+        if res['isSuccess']:
+            logger.info("订单改签成功")
+            return True
+        else:
+            logger.info("订单改签失败")
+            return False
+
+    """查询余票情况"""
     def available_slots(self, arrival):
         self.ckeck_cookie()
 
@@ -439,10 +485,59 @@ class Task(object):
         logger.info('Cookie有效...')
 
 
+# if __name__ == '__main__':
+#     task = Task()
+#     task.ckeck_cookie()
+#
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+#         # Step1: 启动获取验证码线程
+#         future_one = executor.submit(task.create_captcha)
+#
+#         # Step2: 扫描当天任意时段余票
+#         future_two = executor.submit(task.timeslot_check, '2024-09-29', None)
+#         # Step2: 扫描当天指定时段余票
+#         # future_two = executor.submit(task.timeslot_check, '2024-09-29', '12:00')
+#
+#         # Step3: 获取用户信息
+#         future_three = executor.submit(task.get_user_info)
+#         # Step4: 新建草稿订单
+#         future_four = executor.submit(task.create_draft, 'AU9766')
+#
+#         # 等待所以线程结束
+#         executor.shutdown(wait=True)
+#
+#         # 获取线程返回的结果
+#         arrival = future_two.result()
+#         reservationRequestId = future_four.result()
+#
+#     # Step5: 提交订单
+#     isSuccess = task.submit_draft_url(arrival, reservationRequestId)
+#     if isSuccess:
+#         logger.info("订单提交成功")
+#     else:
+#         # 上述暂无余票，重新检查余票情况
+#         arrival_new = task.available_slots(arrival)
+#         if arrival_new is not None:
+#             task.create_captcha()
+#             task.submit_draft_url(arrival_new, reservationRequestId)
+
 if __name__ == '__main__':
     task = Task()
     task.ckeck_cookie()
-    task.get_user_info()
-    # 返回有余票的 日期 和 时间index
-    arrival = task.timeslot_check('2024-09-28')
-    task.create_draft(arrival, 'AU9766')
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        # Step1: 扫描当天任意时段余票
+        future_one = executor.submit(task.timeslot_check, '2024-09-28', None)
+        # Step1: 扫描当天指定时段余票
+        # future_one = executor.submit(task.timeslot_check, '2024-09-28', '07:00')
+
+        # Step2: 获取验证码
+        future_two = executor.submit(task.create_captcha)
+
+        # 等待所以线程结束
+        executor.shutdown(wait=True)
+
+        # 获取线程返回的结果
+        arrival = future_one.result()
+
+    # Step3: 改签订单
+    task.reschedule(arrival, '36e88a72-0c1b-433e-9edb-3ed199cfddf9')
