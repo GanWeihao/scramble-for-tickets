@@ -494,42 +494,51 @@ class Task(object):
         logger.info('------Cookie有效...------')
 
 
-# if __name__ == '__main__':
-#     task = Task()
-#     task.ckeck_cookie()
-#
-#     with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-#         # Step1: 启动获取验证码线程
-#         future_one = executor.submit(task.create_captcha)
-#
-#         # Step2: 扫描当天任意时段余票
-#         future_two = executor.submit(task.timeslot_check, '2024-09-29', None)
-#         # Step2: 扫描当天指定时段余票
-#         # future_two = executor.submit(task.timeslot_check, '2024-09-29', '12:00')
-#
-#         # Step3: 获取用户信息
-#         future_three = executor.submit(task.get_user_info)
-#         # Step4: 新建草稿订单
-#         future_four = executor.submit(task.create_draft, 'AU9766')
-#
-#         # 等待所以线程结束
-#         executor.shutdown(wait=True)
-#
-#         # 获取线程返回的结果
-#         arrival = future_two.result()
-#         reservationRequestId = future_four.result()
-#
-#     # Step5: 提交订单
-#     isSuccess = task.submit_draft_url(arrival, reservationRequestId)
-#     if isSuccess:
-#         logger.info("订单提交成功")
-#     else:
-#         # 上述暂无余票，重新检查余票情况
-#         arrival_new = task.available_slots(arrival)
-#         if arrival_new is not None:
-#             task.create_captcha()
-#             task.submit_draft_url(arrival_new, reservationRequestId)
+"""
+    新建订单启动main
+"""
+"""
+if __name__ == '__main__':
+    task = Task()
+    task.ckeck_cookie()
 
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        # Step1: 启动获取验证码线程
+        future_one = executor.submit(task.create_captcha)
+
+        # Step2: 扫描当天任意时段余票
+        future_two = executor.submit(task.timeslot_check, '2024-09-29', None)
+        # Step2: 扫描当天指定时段余票
+        # future_two = executor.submit(task.timeslot_check, '2024-09-29', '12:00')
+
+        # Step3: 获取用户信息
+        future_three = executor.submit(task.get_user_info)
+        # Step4: 新建草稿订单
+        future_four = executor.submit(task.create_draft, 'AU9766')
+
+        # 等待所以线程结束
+        executor.shutdown(wait=True)
+
+        # 获取线程返回的结果
+        arrival = future_two.result()
+        reservationRequestId = future_four.result()
+
+    # Step5: 提交订单
+    isSuccess = task.submit_draft_url(arrival, reservationRequestId)
+    if isSuccess:
+        logger.info("订单提交成功")
+    else:
+        # 上述暂无余票，重新检查余票情况
+        arrival_new = task.available_slots(arrival)
+        if arrival_new is not None:
+            task.create_captcha()
+            task.submit_draft_url(arrival_new, reservationRequestId)
+"""
+
+
+"""
+    改签订单启动main
+"""
 if __name__ == '__main__':
     task = Task()
     task.ckeck_cookie()
