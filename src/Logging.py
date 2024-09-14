@@ -1,5 +1,7 @@
 import logging
+import os
 import sys
+import time
 
 
 class Logging(object):
@@ -16,22 +18,22 @@ class Logging(object):
         self.logger = logging.getLogger(logger)
         self.logger.setLevel(logging.DEBUG)
         # 创建一个handler，用于写入日志文件
-        # self.log_time = time.strftime("%Y_%m_%d")
-        # file_dir = os.path.join(os.getcwd(), '../log')
-        # if not os.path.exists(file_dir):
-        #     os.mkdir(file_dir)
-        # self.log_path = file_dir
-        # self.log_filename = os.path.join(self.log_path, log_cate + "_" + self.log_time + '.log')
+        self.log_time = time.strftime("%Y_%m_%d")
+        file_dir = os.path.join(os.getcwd(), '../log')
+        if not os.path.exists(file_dir):
+            os.mkdir(file_dir)
+        self.log_path = file_dir
+        self.log_filename = os.path.join(self.log_path, log_cate + "_" + self.log_time + '.log')
 
         # 定义handler的输出格式
         self.formatter = logging.Formatter(
             '[%(asctime)s] PID:%(process)d %(filename)s->%(funcName)s line:%(lineno)d [%(levelname)s] %(message)s')
-        # file_hdl = self.get_file_handler(self.log_filename)
+        file_hdl = self.get_file_handler(self.log_filename)
         csl_hdl = self.get_console_handler()
-        # self.logger.addHandler(file_hdl)
+        self.logger.addHandler(file_hdl)
         self.logger.addHandler(csl_hdl)
         #
-        # file_hdl.close()
+        file_hdl.close()
         csl_hdl.close()
 
     def get_logger(self):

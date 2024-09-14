@@ -200,7 +200,7 @@ class Task(object):
                     return result
             else:
                 slot_time = slot['slotTime'].replace(" ", "")
-                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
+                logger.info(f'{date} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
                 if int(slot['capacityPortal']['free']) > 0:
                     result['intervalIndex'] = idx
                     return result
@@ -281,28 +281,20 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         if res['isSuccess']:
-            logger.info("草稿订单创建成功")
+            logger.info("------草稿订单创建成功------")
 
-            # 创建线程列表
-            threads = []
-            # 创建获取验证码并启动线程
-            t1 = threading.Thread(target=self.create_captcha)
-            threads.append(t1)
-            t1.start()
-
-            # 创建查询车辆信息并启动线程
-            t2 = threading.Thread(target=self.search_vehicles, args=(regNumber,))
-            threads.append(t2)
-            t2.start()
-
-            # 等待所有线程完成
-            for t in threads:
-                t.join()
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                # 创建获取验证码并启动线程
+                create_captcha_task = executor.submit(self.create_captcha)
+                # 创建查询车辆信息并启动线程
+                search_vehicles_task = executor.submit(self.search_vehicles, regNumber)
+                # 等待所以线程结束
+                executor.shutdown(wait=True)
 
             reservationRequestId = res['entity']['reservationRequestId']
             # 更新车辆信息
             self.update_draft(reservationRequestId)
-            logger.info("订单准备完成")
+            logger.info("------订单信息填写完成------")
             return reservationRequestId
         else:
             # 请求失败，2秒后重试
@@ -497,33 +489,31 @@ class Task(object):
 """
     新建订单启动main
 """
-"""
+
 if __name__ == '__main__':
     task = Task()
     task.ckeck_cookie()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        # Step1: 启动获取验证码线程
-        future_one = executor.submit(task.create_captcha)
+    # 获取用户信息
+    future_three = task.get_user_info()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        # Step1: 新建草稿订单
+        future_one = executor.submit(task.create_draft, 'AU9766')
 
         # Step2: 扫描当天任意时段余票
-        future_two = executor.submit(task.timeslot_check, '2024-09-29', None)
+        future_two = executor.submit(task.timeslot_check, '2024-09-28', None)
         # Step2: 扫描当天指定时段余票
         # future_two = executor.submit(task.timeslot_check, '2024-09-29', '12:00')
-
-        # Step3: 获取用户信息
-        future_three = executor.submit(task.get_user_info)
-        # Step4: 新建草稿订单
-        future_four = executor.submit(task.create_draft, 'AU9766')
 
         # 等待所以线程结束
         executor.shutdown(wait=True)
 
         # 获取线程返回的结果
+        reservationRequestId = future_one.result()
         arrival = future_two.result()
-        reservationRequestId = future_four.result()
 
-    # Step5: 提交订单
+    # Step3: 提交订单
     isSuccess = task.submit_draft_url(arrival, reservationRequestId)
     if isSuccess:
         logger.info("订单提交成功")
@@ -533,23 +523,24 @@ if __name__ == '__main__':
         if arrival_new is not None:
             task.create_captcha()
             task.submit_draft_url(arrival_new, reservationRequestId)
-"""
+
 
 
 """
     改签订单启动main
 """
+"""
 if __name__ == '__main__':
     task = Task()
     task.ckeck_cookie()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-        # Step1: 扫描当天任意时段余票
-        future_one = executor.submit(task.timeslot_check, '2024-09-28', None)
-        # Step1: 扫描当天指定时段余票
-        # future_one = executor.submit(task.timeslot_check, '2024-09-28', '07:00')
-
-        # Step2: 获取验证码
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        # Step1: 获取验证码
         future_two = executor.submit(task.create_captcha)
+        
+        # Step2: 扫描当天任意时段余票
+        future_one = executor.submit(task.timeslot_check, '2024-09-28', None)
+        # Step2: 扫描当天指定时段余票
+        # future_one = executor.submit(task.timeslot_check, '2024-09-28', '07:00')
 
         # 等待所以线程结束
         executor.shutdown(wait=True)
@@ -559,3 +550,4 @@ if __name__ == '__main__':
 
     # Step3: 改签订单
     task.reschedule(arrival, '36e88a72-0c1b-433e-9edb-3ed199cfddf9')
+"""
