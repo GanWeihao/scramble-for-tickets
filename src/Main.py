@@ -1,7 +1,6 @@
 import concurrent.futures
 import configparser
 import datetime
-import json
 import os
 import pickle
 import sys
@@ -146,7 +145,7 @@ class Task(object):
                 pwd_input.send_keys(self.account['password'])
             time.sleep(1)
             login_btn.click()
-            logger.info("------登陆成功,等待页面加载------")
+            logger.info("------登录成功,等待页面加载------")
 
             # 等待页面加载完成
             WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH,
@@ -195,13 +194,13 @@ class Task(object):
             slot = res['capacities'][idx]
             if time_str is not None:
                 slot_time = slot['slotTime'].replace(" ", "")
-                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:4] == time_str and int(slot['capacityPortal']['free']) > 0}')
+                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
                 if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
                     result['intervalIndex'] = idx
                     return result
             else:
                 slot_time = slot['slotTime'].replace(" ", "")
-                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:4] == time_str and int(slot['capacityPortal']['free']) > 0}')
+                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
                 if int(slot['capacityPortal']['free']) > 0:
                     result['intervalIndex'] = idx
                     return result
@@ -213,6 +212,7 @@ class Task(object):
     """获取用户信息"""
 
     def get_user_info(self):
+        logger.info('------获取用户信息------')
         self.ckeck_cookie()
             
         request_url = cfg.get("web_info", "get_user_info_url").strip()
@@ -231,6 +231,7 @@ class Task(object):
 
     """获取图片验证码"""
     def create_captcha(self):
+        logger.info('------获取图片验证码------')
         self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "create_captcha_url").strip()
@@ -250,6 +251,7 @@ class Task(object):
 
     """生成草稿订单"""
     def create_draft(self, regNumber=None):
+        logger.info('------生成草稿订单------')
         self.ckeck_cookie()
 
         if regNumber is None:
@@ -309,6 +311,7 @@ class Task(object):
 
     """查询车辆信息，regNumber-车牌号"""
     def search_vehicles(self, regNumber=None):
+        logger.info(f'------查询车辆{regNumber}信息------')
         self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "search_vehicles_url").strip()
@@ -334,8 +337,9 @@ class Task(object):
 
         raise ValueError('车辆不存在或车辆状态不可用')
 
-    """更新车辆信息"""
+    """更新订单车辆信息"""
     def update_draft(self, reservationId=None):
+        logger.info('------更新订单车辆信息------')
         self.ckeck_cookie()
 
         if reservationId is None:
@@ -375,6 +379,7 @@ class Task(object):
 
     """提交订单"""
     def submit_draft_url(self, arrival, reservationId):
+        logger.info('------开始提交订单：%s ------' % arrival)
         self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "submit_draft_url").strip()
@@ -408,6 +413,7 @@ class Task(object):
 
     """改签订单"""
     def reschedule(self, arrival, reservationId):
+        logger.info('------开始改签订单：%s ------' % arrival)
         self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "reschedule_url").strip()
@@ -430,14 +436,15 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         if res['isSuccess']:
-            logger.info("订单改签成功")
+            logger.info("------订单改签成功------")
             return True
         else:
-            logger.info("订单改签失败")
+            logger.exception("======订单改签失败======")
             return False
 
     """查询余票情况"""
     def available_slots(self, arrival):
+        logger.info("------查询余票情况------")
         self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "available_slots_url").strip()
@@ -465,9 +472,11 @@ class Task(object):
         logger.error("暂无余票，重新监测")
         return None
 
+    """校验Cookie"""
     def ckeck_cookie(self):
+        logger.info("------开始校验Cookie------")
         if not os.path.exists("../cookies_test.pkl"):
-            logger.info('Cookie文件不存在，重新登录生成')
+            logger.warn('******Cookie文件不存在，重新登录生成******')
             self.get_cookie('0')
             time.sleep(2)
             self.get_cookie('1')
@@ -477,12 +486,12 @@ class Task(object):
             dtime = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
             dtime_obj = datetime.datetime.strptime(dtime, "%Y-%m-%d %H:%M:%S")
             if time_delta(begin_time=datetime.timedelta(seconds=dtime_obj.timestamp()), end_time=datetime.timedelta(seconds=time.time())) > 7:
-                logger.info('Cookie过期，重新获取')
+                logger.warn('******Cookie过期，重新获取******')
                 self.get_cookie('0')
                 time.sleep(2)
                 self.get_cookie('1')
 
-        logger.info('Cookie有效...')
+        logger.info('------Cookie有效...------')
 
 
 # if __name__ == '__main__':
