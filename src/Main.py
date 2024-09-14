@@ -1,9 +1,13 @@
 import configparser
 import datetime
+import json
 import os
 import pickle
+import random
+import string
 import time
 
+from requests_toolbelt import MultipartEncoder
 from selenium import webdriver
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
@@ -11,7 +15,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 from src.Logging import Logging
-from src.OtherUtils import time_delta
+from src.OtherUtils import time_delta, get_code_new, build_timeslot
 from src.RequestUtil import RequestUtil
 
 cfg = configparser.RawConfigParser()
@@ -136,10 +140,10 @@ class Task(object):
                                                                                  '/html/body/app-root/layout-with-nav/app-flex-item/div/mat-sidenav-container/mat-sidenav-content/app-reservations-list-page/form/mat-sidenav-container/mat-sidenav-content')))
             # 保存Cookie，输出到文件
             if user_type == "0":
-                self.begin_time = datetime.time
-                pickle.dump(self.driver.get_cookies(), open("cookies_test.pkl", "wb"))
+                self.begin_time = datetime.timedelta
+                pickle.dump(self.driver.get_cookies(), open("../cookies_test.pkl", "wb"))
             else:
-                pickle.dump(self.driver.get_cookies(), open("cookies.pkl", "wb"))
+                pickle.dump(self.driver.get_cookies(), open("../cookies.pkl", "wb"))
 
             # 关闭浏览器
             self.driver.quit()
@@ -150,19 +154,16 @@ class Task(object):
 
     '''余票监测'''
 
-    def timeslot_check(self, date=None, time=None):
-        if time_delta(self.begin_time, datetime.time) > 7:
-            self.get_cookie('0')
-            time.sleep(3)
-            self.get_cookie('1')
+    def timeslot_check(self, date=None, time_str=None, stime='00:00', etime='23:59'):
+        self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "timeslot_registry_url").strip()
         params = {
             'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
             'startDate': date,
             'endDate': date,
-            'startTime': '00:00',
-            'endTime': '23:59',
+            'startTime': stime,
+            'endTime': etime,
             'pageIndex': 1,
             'pageSize': 100
         }
@@ -179,23 +180,25 @@ class Task(object):
         }
         for idx in range(len(res['capacities'])):
             slot = res['capacities'][idx]
-            if time is not None:
+            if time_str is not None:
                 slotTime = slot['slotTime'].replace(" ", "")
-                if slotTime[0:4] == time and int(slot['capacityPortal']['free']):
-                    result['intervalIndex'] = idx + 1
+                if slotTime[0:4] == time_str and int(slot['capacityPortal']['free']):
+                    result['intervalIndex'] = idx
                     return result
             else:
                 if int(slot['capacityPortal']['free']) > 0:
-                    result['intervalIndex'] = idx + 1
+                    result['intervalIndex'] = idx
                     return result
-        # 延迟2秒执行，防止被墙
-        time.sleep(2)
+        # 延迟1秒执行，防止被墙
+        time.sleep(1)
         # 如果没有符合条件的，则迭代调用，直到刷出余票
         return self.timeslot_check(date, time)
 
     '''获取用户信息'''
 
     def get_user_info(self):
+        self.ckeck_cookie()
+            
         request_url = cfg.get("web_info", "get_user_info_url").strip()
         param = {
             'isTso': 'false'
@@ -210,22 +213,40 @@ class Task(object):
                                   user_type='1')
         self.user_info = res
 
+    '''获取图片验证码'''
+    def create_captcha(self):
+        self.ckeck_cookie()
+
+        request_url = cfg.get("web_info", "create_captcha_url").strip()
+        param = {}
+        headers_temp = headers
+        headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
+        res = requestUtil.request(url=request_url,
+                                  method='get',
+                                  headers=headers_temp,
+                                  param=param,
+                                  content_type='application/json',
+                                  user_type='1')
+        self.captcha = {
+            'captachaHash': res['fileDownloadName'],
+            'captachaInputText': get_code_new(res['fileContents'])
+        }
+
     '''生成草稿订单'''
     def create_draft(self, arrival, regNumber=None):
-        if time_delta(self.begin_time, datetime.time) > 7:
-            self.get_cookie('0')
-            time.sleep(3)
-            self.get_cookie('1')
+        self.ckeck_cookie()
 
         if regNumber is None:
             logger.exception('请填写车牌号')
             return
 
+        self.create_captcha()
+
         request_url = cfg.get("web_info", "create_draft_url").strip()
         param = {
             "fio": self.user_info['fullName'],
             "organizationName": "",
-            "inn": self.user_info['inn'],
+            "inn": str(self.user_info['inn']),
             "orgInn": self.user_info['orgInn'],
             "requesterType": "Foreign organization",
             "organizationForm": "",
@@ -265,11 +286,9 @@ class Task(object):
 
     '''查询车辆信息，regNumber-车牌号'''
     def search_vehicles(self, regNumber=None):
-        if time_delta(self.begin_time, datetime.time) > 7:
-            self.get_cookie('0')
-            time.sleep(3)
-            self.get_cookie('1')
-        request_url = cfg.get("web_info", "create_draft_url").strip()
+        self.ckeck_cookie()
+
+        request_url = cfg.get("web_info", "search_vehicles_url").strip()
         param = {
             "substring": regNumber,
             "subtype": "1"
@@ -285,7 +304,7 @@ class Task(object):
         if len(res) <= 0:
             raise ValueError('车牌号不存在，请检查')
         for vehicle in res:
-            if vehicle['regNumber'] == regNumber and vehicle['status'] == '1':
+            if vehicle['regNumber'] == regNumber and vehicle['status'] == 1:
                 self.vehicle = vehicle
                 logger.info("车辆信息获取成功")
                 return
@@ -294,28 +313,36 @@ class Task(object):
 
     '''更新车辆信息'''
     def update_draft(self, reservationId=None):
-        if time_delta(self.begin_time, datetime.time) > 7:
-            self.get_cookie('0')
-            time.sleep(3)
-            self.get_cookie('1')
+        self.ckeck_cookie()
 
         if reservationId is None:
             logger.exception("请传入订单ID")
             return
 
-        request_url = cfg.get("web_info", "create_draft_url").strip()
-        param = {
-            "typeOfTransportation": 1,
-            "reservationId": reservationId,
-            "vehicles": [{
-                "id": self.vehicle['id'],
-                "regNumber": self.vehicle['regNumber'],
-                "vehicleType": self.vehicle['vehicleType'],
-                "subType": self.vehicle['subType'],
-                "status": self.vehicle['status'],
-                "scanDoc": self.vehicle['scanDoc']
-            }]
-        }
+        request_url = cfg.get("web_info", "update_draft_url").strip()
+        param = MultipartEncoder(
+            fields={
+                "typeOfTransportation": '1',
+                "reservationId": str(reservationId),
+                "vehicles": json.dumps([{
+                    "id": self.vehicle['id'],
+                    "regNumber": self.vehicle['regNumber'],
+                    "vehicleType": str(self.vehicle['vehicleType']),
+                    "subType": str(self.vehicle['subType']),
+                    "status": str(self.vehicle['status']),
+                    "scanDoc": json.dumps([{
+                        "name": self.vehicle['scanDoc'][0]['name'],
+                        "path": self.vehicle['scanDoc'][0]['path'],
+                        "size": str(self.vehicle['scanDoc'][0]['size']),
+                        "createdAt": self.vehicle['scanDoc'][0]['createdAt']
+                    }])
+                }])
+            }
+        )
+        boundary = '----WebKitFormBoundary' \
+                   + ''.join(random.sample(string.ascii_letters + string.digits, 16))
+        m = MultipartEncoder(fields=param, boundary=boundary)
+
         headers_temp = headers
         headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
         res = requestUtil.request(url=request_url,
@@ -331,10 +358,7 @@ class Task(object):
 
     '''提交订单'''
     def submit_draft_url(self, arrival, reservationId):
-        if time_delta(self.begin_time, datetime.time) > 7:
-            self.get_cookie('0')
-            time.sleep(3)
-            self.get_cookie('1')
+        self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "submit_draft_url").strip()
         param = {
@@ -342,13 +366,13 @@ class Task(object):
             "countryId": "156",
             "facilityId": "1dae5b1c-e2b3-44a4-848f-df8ce2ddde42",
             "arrivalDatePlan": arrival['arrivalDatePlan'],
-            "timeslot": "27.09.2024, 03:00 - 04:00",
-            "captachaInputText": "8513",
-            "captachaHash": "RTjPWqprwRFpFmDWB/28TQ==",
+            "timeslot": build_timeslot(arrival),
+            "captachaInputText": self.captcha['captachaInputText'],
+            "captachaHash": self.captcha['captachaHash'],
             "intervalIndex": arrival['intervalIndex'],
             "transportType": 1,
             "modeType": 1,
-            "isTso": 'false'
+            "isTso": False
         }
         headers_temp = headers
         headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
@@ -365,17 +389,15 @@ class Task(object):
             logger.info("订单提交失败")
             return False
 
+
     '''查询余票情况'''
     def available_slots(self, arrival):
-        if time_delta(self.begin_time, datetime.time) > 7:
-            self.get_cookie('0')
-            time.sleep(3)
-            self.get_cookie('1')
+        self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "available_slots_url").strip()
         param = {
             "facilityId": '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
-            "vehicleId": self.vehicle.id,
+            "vehicleId": self.vehicle['id'],
             "date": arrival['arrivalDatePlan'],
             "transportType": 1,
             "isCreateReservation": 'true'
@@ -397,12 +419,30 @@ class Task(object):
         logger.error("暂无余票，重新监测")
         return None
 
+    def ckeck_cookie(self):
+        if not os.path.exists("../cookies_test.pkl"):
+            logger.info('Cookie文件不存在，重新登录生成')
+            self.get_cookie('0')
+            time.sleep(2)
+            self.get_cookie('1')
+        else:
+            # 获取文件创建时间
+            mtime = os.path.getmtime("../cookies_test.pkl")
+            dtime = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
+            dtime_obj = datetime.datetime.strptime(dtime, "%Y-%m-%d %H:%M:%S")
+            if time_delta(begin_time=datetime.timedelta(seconds=dtime_obj.timestamp()), end_time=datetime.timedelta(seconds=time.time())) > 7:
+                logger.info('Cookie过期，重新获取')
+                self.get_cookie('0')
+                time.sleep(2)
+                self.get_cookie('1')
+
+        logger.info('Cookie有效...')
+
+
 if __name__ == '__main__':
     task = Task()
-    task.get_cookie("0")
-    time.sleep(3)
-    task.get_cookie("1")
+    task.ckeck_cookie()
     task.get_user_info()
     # 返回有余票的 日期 和 时间index
     arrival = task.timeslot_check('2024-09-28')
-    task.create_draft(arrival, 'AU5629')
+    task.create_draft(arrival, 'AU9766')
