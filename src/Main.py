@@ -166,48 +166,50 @@ class Task(object):
 
     """余票监测"""
 
-    def timeslot_check(self, date=None, time_str=None):
-        self.ckeck_cookie()
+    def timeslot_check(self, begin_date=None, end_date=None, time_str=None):
+        
+        while True:
+            self.ckeck_cookie()
 
-        request_url = cfg.get("web_info", "timeslot_registry_url").strip()
-        params = {
-            'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
-            'startDate': date,
-            'endDate': date,
-            'startTime': '00:00',
-            'endTime': '23:59',
-            'pageIndex': 1,
-            'pageSize': 100
-        }
-        headers_temp = headers
-        headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
-        res = requestUtil.request(url=request_url,
-                                  method='get',
-                                  headers=headers_temp,
-                                  param=params,
-                                  content_type='application/json',
-                                  user_type='0')
-        result = {
-            'arrivalDatePlan': date
-        }
-        for idx in range(len(res['capacities'])):
-            slot = res['capacities'][idx]
-            if time_str is not None:
-                slot_time = slot['slotTime'].replace(" ", "")
-                logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
-                if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
-                    result['intervalIndex'] = idx
-                    return result
-            else:
-                slot_time = slot['slotTime'].replace(" ", "")
-                logger.info(f'{date} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
-                if int(slot['capacityPortal']['free']) > 0:
-                    result['intervalIndex'] = idx
-                    return result
-        # 延迟1秒执行，防止被墙
-        time.sleep(2)
-        # 如果没有符合条件的，则迭代调用，直到刷出余票
-        return self.timeslot_check(date, time_str)
+            request_url = cfg.get("web_info", "timeslot_registry_url").strip()
+            params = {
+                'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
+                'startDate': begin_date,
+                'endDate': end_date,
+                'startTime': '00:00',
+                'endTime': '23:59',
+                'pageIndex': 1,
+                'pageSize': 100
+            }
+            headers_temp = headers
+            headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
+            res = requestUtil.request(url=request_url,
+                                      method='get',
+                                      headers=headers_temp,
+                                      param=params,
+                                      content_type='application/json',
+                                      user_type='0')
+            result = {
+                'arrivalDatePlan': date
+            }
+            for idx in range(len(res['capacities'])):
+                slot = res['capacities'][idx]
+                if time_str is not None:
+                    slot_time = slot['slotTime'].replace(" ", "")
+                    logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
+                    if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
+                        result['intervalIndex'] = idx
+                        break
+                else:
+                    slot_time = slot['slotTime'].replace(" ", "")
+                    logger.info(f'{date} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
+                    if int(slot['capacityPortal']['free']) > 0:
+                        result['intervalIndex'] = idx
+                        break
+            # 延迟2秒执行，防止被墙
+            time.sleep(2)
+            # 如果没有符合条件的，则迭代调用，直到刷出余票
+            # return self.timeslot_check(date, time_str)
 
     """获取用户信息"""
 
@@ -502,9 +504,9 @@ if __name__ == '__main__':
         future_one = executor.submit(task.create_draft, 'AU9766')
 
         # Step2: 扫描当天任意时段余票
-        future_two = executor.submit(task.timeslot_check, '2024-09-28', None)
+        future_two = executor.submit(task.timeslot_check, '2024-09-21', '2024-09-23', None)
         # Step2: 扫描当天指定时段余票
-        # future_two = executor.submit(task.timeslot_check, '2024-09-29', '12:00')
+        # future_two = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', '12:00')
 
         # 等待所以线程结束
         executor.shutdown(wait=True)
@@ -538,9 +540,9 @@ if __name__ == '__main__':
         future_two = executor.submit(task.create_captcha)
         
         # Step2: 扫描当天任意时段余票
-        future_one = executor.submit(task.timeslot_check, '2024-09-28', None)
+        future_one = executor.submit(task.timeslot_check,'2024-09-21', '2024-09-28', None)
         # Step2: 扫描当天指定时段余票
-        # future_one = executor.submit(task.timeslot_check, '2024-09-28', '07:00')
+        # future_one = executor.submit(task.timeslot_check,'2024-09-21', '2024-09-28', '07:00')
 
         # 等待所以线程结束
         executor.shutdown(wait=True)
