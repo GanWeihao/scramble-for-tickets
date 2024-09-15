@@ -167,8 +167,9 @@ class Task(object):
     """余票监测"""
 
     def timeslot_check(self, begin_date=None, end_date=None, time_str=None):
-        
-        while True:
+        result = {}
+        flag = True
+        while flag:
             self.ckeck_cookie()
 
             request_url = cfg.get("web_info", "timeslot_registry_url").strip()
@@ -189,27 +190,30 @@ class Task(object):
                                       param=params,
                                       content_type='application/json',
                                       user_type='0')
-            result = {
-                'arrivalDatePlan': date
-            }
             for idx in range(len(res['capacities'])):
                 slot = res['capacities'][idx]
                 if time_str is not None:
                     slot_time = slot['slotTime'].replace(" ", "")
-                    logger.info(f'{date} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
+                    logger.info(
+                        f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
                     if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
-                        result['intervalIndex'] = idx
+                        result['arrivalDatePlan'] = slot['slotDate']
+                        result['intervalIndex'] = idx % 23
+                        flag = False
                         break
                 else:
                     slot_time = slot['slotTime'].replace(" ", "")
-                    logger.info(f'{date} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
+                    logger.info(
+                        f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
                     if int(slot['capacityPortal']['free']) > 0:
-                        result['intervalIndex'] = idx
+                        result['arrivalDatePlan'] = slot['slotDate']
+                        result['intervalIndex'] = idx % 23
+                        flag = False
                         break
-            # 延迟2秒执行，防止被墙
-            time.sleep(2)
-            # 如果没有符合条件的，则迭代调用，直到刷出余票
-            # return self.timeslot_check(date, time_str)
+            if flag:
+                # 延迟2秒执行，防止被墙
+                time.sleep(2)
+        return result
 
     """获取用户信息"""
 
@@ -342,22 +346,22 @@ class Task(object):
 
         request_url = cfg.get("web_info", "update_draft_url").strip()
         param = {
-                "typeOfTransportation": '1',
-                "reservationId": str(reservationId),
-                "vehicles": [{
-                    "id": self.vehicle['id'],
-                    "regNumber": self.vehicle['regNumber'],
-                    "vehicleType": str(self.vehicle['vehicleType']),
-                    "subType": str(self.vehicle['subType']),
-                    "status": str(self.vehicle['status']),
-                    "scanDoc": [{
-                        "name": self.vehicle['scanDoc'][0]['name'],
-                        "path": self.vehicle['scanDoc'][0]['path'],
-                        "size": str(self.vehicle['scanDoc'][0]['size']),
-                        "createdAt": self.vehicle['scanDoc'][0]['createdAt']
-                    }]
+            "typeOfTransportation": '1',
+            "reservationId": str(reservationId),
+            "vehicles": [{
+                "id": self.vehicle['id'],
+                "regNumber": self.vehicle['regNumber'],
+                "vehicleType": str(self.vehicle['vehicleType']),
+                "subType": str(self.vehicle['subType']),
+                "status": str(self.vehicle['status']),
+                "scanDoc": [{
+                    "name": self.vehicle['scanDoc'][0]['name'],
+                    "path": self.vehicle['scanDoc'][0]['path'],
+                    "size": str(self.vehicle['scanDoc'][0]['size']),
+                    "createdAt": self.vehicle['scanDoc'][0]['createdAt']
                 }]
-            }
+            }]
+        }
         headers_temp = headers
         headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
         res = requestUtil.request(url=request_url,
@@ -479,7 +483,8 @@ class Task(object):
             mtime = os.path.getmtime("../cookies_test.pkl")
             dtime = datetime.datetime.fromtimestamp(mtime).strftime("%Y-%m-%d %H:%M:%S")
             dtime_obj = datetime.datetime.strptime(dtime, "%Y-%m-%d %H:%M:%S")
-            if time_delta(begin_time=datetime.timedelta(seconds=dtime_obj.timestamp()), end_time=datetime.timedelta(seconds=time.time())) > 7:
+            if time_delta(begin_time=datetime.timedelta(seconds=dtime_obj.timestamp()),
+                          end_time=datetime.timedelta(seconds=time.time())) > 7:
                 logger.warn('******Cookie过期，重新获取******')
                 self.get_cookie('0')
                 time.sleep(2)
@@ -492,55 +497,54 @@ class Task(object):
     新建订单启动main
 """
 
-if __name__ == '__main__':
-    task = Task()
-    task.ckeck_cookie()
-
-    # 获取用户信息
-    future_three = task.get_user_info()
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        # Step1: 新建草稿订单
-        future_one = executor.submit(task.create_draft, 'AU9766')
-
-        # Step2: 扫描当天任意时段余票
-        future_two = executor.submit(task.timeslot_check, '2024-09-21', '2024-09-23', None)
-        # Step2: 扫描当天指定时段余票
-        # future_two = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', '12:00')
-
-        # 等待所以线程结束
-        executor.shutdown(wait=True)
-
-        # 获取线程返回的结果
-        reservationRequestId = future_one.result()
-        arrival = future_two.result()
-
-    # Step3: 提交订单
-    isSuccess = task.submit_draft_url(arrival, reservationRequestId)
-    if isSuccess:
-        logger.info("订单提交成功")
-    else:
-        # 上述暂无余票，重新检查余票情况
-        arrival_new = task.available_slots(arrival)
-        if arrival_new is not None:
-            task.create_captcha()
-            task.submit_draft_url(arrival_new, reservationRequestId)
-
+# if __name__ == '__main__':
+#     task = Task()
+#     task.ckeck_cookie()
+#
+#     # 获取用户信息
+#     future_three = task.get_user_info()
+#
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+#         # Step1: 新建草稿订单
+#         future_one = executor.submit(task.create_draft, 'AU5629')
+#
+#         # Step2: 扫描当天任意时段余票
+#         future_two = executor.submit(task.timeslot_check, '2024-09-24', '2024-09-28', None)
+#         # Step2: 扫描当天指定时段余票
+#         # future_two = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', '12:00')
+#
+#         # 等待所以线程结束
+#         executor.shutdown(wait=True)
+#
+#         # 获取线程返回的结果
+#         reservationRequestId = future_one.result()
+#         arrival = future_two.result()
+#
+#     # Step3: 提交订单
+#     isSuccess = task.submit_draft_url(arrival, reservationRequestId)
+#     if isSuccess:
+#         logger.info("订单提交成功")
+#     else:
+#         # 上述暂无余票，重新检查余票情况
+#         arrival_new = task.available_slots(arrival)
+#         if arrival_new is not None:
+#             task.create_captcha()
+#             task.submit_draft_url(arrival_new, reservationRequestId)
 
 
 """
     改签订单启动main
 """
-"""
+
 if __name__ == '__main__':
     task = Task()
     task.ckeck_cookie()
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         # Step1: 获取验证码
         future_two = executor.submit(task.create_captcha)
-        
+
         # Step2: 扫描当天任意时段余票
-        future_one = executor.submit(task.timeslot_check,'2024-09-21', '2024-09-28', None)
+        future_one = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', None)
         # Step2: 扫描当天指定时段余票
         # future_one = executor.submit(task.timeslot_check,'2024-09-21', '2024-09-28', '07:00')
 
@@ -551,5 +555,4 @@ if __name__ == '__main__':
         arrival = future_one.result()
 
     # Step3: 改签订单
-    task.reschedule(arrival, '36e88a72-0c1b-433e-9edb-3ed199cfddf9')
-"""
+    task.reschedule(arrival, '35cd6707-ed18-4854-84cc-a0a4f4cc28b0')
