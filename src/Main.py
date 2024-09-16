@@ -4,7 +4,6 @@ import datetime
 import os
 import pickle
 import sys
-import threading
 import time
 
 from selenium import webdriver
@@ -25,6 +24,7 @@ logger = Logging(__name__).get_logger()
 
 requestUtil = RequestUtil()
 
+WAIT_TIME=1
 WIDTH = 720
 HEIGHT = 1280
 PIXEL_RATIO = 3.0
@@ -84,7 +84,7 @@ class Task(object):
         # 设置默认编码为utf-8，也就是中文
         self.chrome_options.add_argument('lang=zh_CN.UTF-8')
         # 禁止硬件加速
-        self.chrome_options.add_argument('--disable-gpu')
+        # self.chrome_options.add_argument('--disable-gpu')
         # 取消沙盒模式
         self.chrome_options.add_argument('--no-sandbox')
         # 禁止弹窗广告
@@ -96,7 +96,7 @@ class Task(object):
         # ##大量渲染时候写入/tmp而非/dev/shm
         self.chrome_options.add_argument("-–disable-dev-shm-usage")
         # 打开开发者控制台
-        self.chrome_options.add_argument("--auto-open-devtools-for-tabs")
+        # self.chrome_options.add_argument("--auto-open-devtools-for-tabs")
         desired_capabilities = DesiredCapabilities.CHROME
         desired_capabilities["pageLoadStrategy"] = "none"
 
@@ -126,14 +126,21 @@ class Task(object):
             logger.info("------开始登录------")
             self.driver.get(self.login_url)
 
-            logger.info("------填入账号信息------")
-            user_input = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="mat-input-0"]')))
-            pwd_input = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.XPATH, '//*[@id="mat-input-1"]')))
-            login_btn = WebDriverWait(self.driver, 20).until(
-                EC.presence_of_element_located((By.XPATH,
-                                                '/html/body/app-root/layout-with-nav/app-flex-container/div/app-flex-item/div/app-signin/div/div[2]/div/div[3]/app-specialists-signin/div[2]/form/button')))
+            page_is_already = False
+            while not page_is_already:
+                try:
+                    logger.info("------填入账号信息------")
+                    user_input = WebDriverWait(self.driver, 20).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="mat-input-0"]')))
+                    pwd_input = WebDriverWait(self.driver, 20).until(
+                        EC.presence_of_element_located((By.XPATH, '//*[@id="mat-input-1"]')))
+                    login_btn = WebDriverWait(self.driver, 20).until(
+                        EC.presence_of_element_located((By.XPATH,
+                                                        '/html/body/app-root/layout-with-nav/app-flex-container/div/app-flex-item/div/app-signin/div/div[2]/div/div[3]/app-specialists-signin/div[2]/form/button')))
+                    page_is_already = True
+                except Exception as e:
+                    logger.error('页面加载失败，准备重新加载 %s' % e)
+
 
             if user_type == "0":
                 user_input.send_keys(self.test_account['account'])  # 换为实际用户名
@@ -162,6 +169,7 @@ class Task(object):
             logger.info("------Cookie保存成功------")
         except Exception as e:
             logger.exception(e)
+            self.driver.quit()
             raise e
 
     """余票监测"""
@@ -212,7 +220,7 @@ class Task(object):
                         break
             if flag:
                 # 延迟2秒执行，防止被墙
-                time.sleep(2)
+                time.sleep(WAIT_TIME)
         return result
 
     """获取用户信息"""
@@ -473,7 +481,7 @@ class Task(object):
         if not os.path.exists("../cookies_test.pkl"):
             logger.warn('******Cookie文件不存在，重新登录生成******')
             self.get_cookie('0')
-            time.sleep(2)
+            time.sleep(1)
             self.get_cookie('1')
         else:
             # 获取文件创建时间
@@ -506,7 +514,7 @@ if __name__ == '__main__':
         future_one = executor.submit(task.create_draft, 'AU5629')
 
         # Step2: 扫描当天任意时段余票
-        future_two = executor.submit(task.timeslot_check, '2024-09-17', '2024-09-18', None)
+        future_two = executor.submit(task.timeslot_check, '2024-09-19', '2024-09-24', None)
         # Step2: 扫描当天指定时段余票
         # future_two = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', '12:00')
 

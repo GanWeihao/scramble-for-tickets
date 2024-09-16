@@ -3,7 +3,6 @@ import pickle
 
 import requests
 import random, string
-from requests_toolbelt import MultipartEncoder
 
 from src.Logging import Logging
 from src.OtherUtils import multipart_form_data
