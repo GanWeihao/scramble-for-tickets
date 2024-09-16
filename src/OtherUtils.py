@@ -9,6 +9,16 @@ def time_delta(begin_time, end_time):
     delta = end_time - begin_time
     return delta.total_seconds() // 3600
 
+'''计算两个日期之间相差天数'''
+def date_delta(begin_date, end_date):
+    # 将字符串转换为日期对象
+    date_1 = datetime.datetime.strptime(begin_date, "%Y-%m-%d")
+    date_2 = datetime.datetime.strptime(end_date, "%Y-%m-%d")
+
+    # 计算两个日期之间的天数差
+    delta = date_2 - date_1
+    return delta.days + 1
+
 
 '''识别图片验证码'''
 def get_code_new(base64):
@@ -84,20 +94,4 @@ def format_from_data(data, args_str='', jion_str='', boundary='', filedname='', 
 
 
 if __name__ == '__main__':
-    print(multipart_form_data({
-        "typeOfTransportation": '1',
-        "reservationId": '48429722-9821-443e-b09e-36c40b4942c3',
-        "vehicles": [{
-            "id": 'cb762c05-a95f-4265-b933-5f5c8aac204b',
-            "regNumber": 'AU9766',
-            "vehicleType": '3',
-            "subType": '1',
-            "status": '1',
-            "scanDoc": [{
-                "name": '16fb321b-af24-43d0-a881-22e8574b0fe6.png',
-                "path": '16fb321b-af24-43d0-a881-22e8574b0fe6.png',
-                "size": '697462',
-                "createdAt": '0001-01-01T00:00:00'
-            }]
-        }]
-    }))
+    print(date_delta('2024-09-17', '2024-09-27'))

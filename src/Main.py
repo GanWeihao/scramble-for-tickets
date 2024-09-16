@@ -14,7 +14,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 from src.Logging import Logging
-from src.OtherUtils import time_delta, get_code_new, build_timeslot
+from src.OtherUtils import time_delta, get_code_new, build_timeslot, date_delta
 from src.RequestUtil import RequestUtil
 
 cfg = configparser.RawConfigParser()
@@ -180,7 +180,7 @@ class Task(object):
                 'startTime': '00:00',
                 'endTime': '23:59',
                 'pageIndex': 1,
-                'pageSize': 100
+                'pageSize': date_delta(begin_date, end_date) * 24
             }
             headers_temp = headers
             headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
@@ -313,21 +313,18 @@ class Task(object):
         self.ckeck_cookie()
 
         request_url = cfg.get("web_info", "search_vehicles_url").strip()
-        param = {
-            "substring": regNumber,
-            "subtype": "1"
-        }
+        param = {"commonParams":{"pageIndex":1,"pageSize":500,"sortColumn":"created_at","isDescSort":True},"filters":{}}
         headers_temp = headers
         headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
         res = requestUtil.request(url=request_url,
-                                  method='get',
+                                  method='post',
                                   headers=headers_temp,
                                   param=param,
                                   content_type='application/json',
                                   user_type='1')
-        if len(res) <= 0:
-            raise ValueError('车牌号不存在，请检查')
-        for vehicle in res:
+        if len(res['payload']) <= 0:
+            raise ValueError('暂无可用车辆')
+        for vehicle in res['payload']:
             if vehicle['regNumber'] == regNumber and vehicle['status'] == 1:
                 self.vehicle = vehicle
                 logger.info("车辆信息获取成功")
@@ -351,8 +348,8 @@ class Task(object):
             "vehicles": [{
                 "id": self.vehicle['id'],
                 "regNumber": self.vehicle['regNumber'],
-                "vehicleType": str(self.vehicle['vehicleType']),
-                "subType": str(self.vehicle['subType']),
+                "vehicleType": str(self.vehicle['vehicleTypeId']),
+                "subType": str(self.vehicle['subTypeId']),
                 "status": str(self.vehicle['status']),
                 "scanDoc": [{
                     "name": self.vehicle['scanDoc'][0]['name'],
@@ -497,62 +494,62 @@ class Task(object):
     新建订单启动main
 """
 
-# if __name__ == '__main__':
-#     task = Task()
-#     task.ckeck_cookie()
-#
-#     # 获取用户信息
-#     future_three = task.get_user_info()
-#
-#     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-#         # Step1: 新建草稿订单
-#         future_one = executor.submit(task.create_draft, 'AU5629')
-#
-#         # Step2: 扫描当天任意时段余票
-#         future_two = executor.submit(task.timeslot_check, '2024-09-24', '2024-09-28', None)
-#         # Step2: 扫描当天指定时段余票
-#         # future_two = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', '12:00')
-#
-#         # 等待所以线程结束
-#         executor.shutdown(wait=True)
-#
-#         # 获取线程返回的结果
-#         reservationRequestId = future_one.result()
-#         arrival = future_two.result()
-#
-#     # Step3: 提交订单
-#     isSuccess = task.submit_draft_url(arrival, reservationRequestId)
-#     if isSuccess:
-#         logger.info("订单提交成功")
-#     else:
-#         # 上述暂无余票，重新检查余票情况
-#         arrival_new = task.available_slots(arrival)
-#         if arrival_new is not None:
-#             task.create_captcha()
-#             task.submit_draft_url(arrival_new, reservationRequestId)
+if __name__ == '__main__':
+    task = Task()
+    task.ckeck_cookie()
+
+    # 获取用户信息
+    future_three = task.get_user_info()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        # Step1: 新建草稿订单
+        future_one = executor.submit(task.create_draft, 'AU5629')
+
+        # Step2: 扫描当天任意时段余票
+        future_two = executor.submit(task.timeslot_check, '2024-09-17', '2024-09-18', None)
+        # Step2: 扫描当天指定时段余票
+        # future_two = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', '12:00')
+
+        # 等待所以线程结束
+        executor.shutdown(wait=True)
+
+        # 获取线程返回的结果
+        reservationRequestId = future_one.result()
+        arrival = future_two.result()
+
+    # Step3: 提交订单
+    isSuccess = task.submit_draft_url(arrival, reservationRequestId)
+    if isSuccess:
+        logger.info("订单提交成功")
+    else:
+        # 上述暂无余票，重新检查余票情况
+        arrival_new = task.available_slots(arrival)
+        if arrival_new is not None:
+            task.create_captcha()
+            task.submit_draft_url(arrival_new, reservationRequestId)
 
 
 """
     改签订单启动main
 """
 
-if __name__ == '__main__':
-    task = Task()
-    task.ckeck_cookie()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        # Step1: 获取验证码
-        future_two = executor.submit(task.create_captcha)
-
-        # Step2: 扫描当天任意时段余票
-        future_one = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', None)
-        # Step2: 扫描当天指定时段余票
-        # future_one = executor.submit(task.timeslot_check,'2024-09-21', '2024-09-28', '07:00')
-
-        # 等待所以线程结束
-        executor.shutdown(wait=True)
-
-        # 获取线程返回的结果
-        arrival = future_one.result()
-
-    # Step3: 改签订单
-    task.reschedule(arrival, '35cd6707-ed18-4854-84cc-a0a4f4cc28b0')
+# if __name__ == '__main__':
+#     task = Task()
+#     task.ckeck_cookie()
+#     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+#         # Step1: 获取验证码
+#         future_two = executor.submit(task.create_captcha)
+#
+#         # Step2: 扫描当天任意时段余票
+#         future_one = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', None)
+#         # Step2: 扫描当天指定时段余票
+#         # future_one = executor.submit(task.timeslot_check,'2024-09-21', '2024-09-28', '07:00')
+#
+#         # 等待所以线程结束
+#         executor.shutdown(wait=True)
+#
+#         # 获取线程返回的结果
+#         arrival = future_one.result()
+#
+#     # Step3: 改签订单
+#     task.reschedule(arrival, '35cd6707-ed18-4854-84cc-a0a4f4cc28b0')
