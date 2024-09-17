@@ -246,6 +246,7 @@ class Task(object):
     """获取图片验证码"""
     def create_captcha(self):
         global flag
+        VER_CODE_TIME = int(cfg.get('task_info', 'VER_CODE_TIME').strip())
         while flag:
             logger.info('------获取图片验证码------')
             self.ckeck_cookie()
@@ -264,7 +265,7 @@ class Task(object):
                 'captachaHash': res['fileDownloadName'],
                 'captachaInputText': get_code_new(res['fileContents'])
             }
-            time.sleep(5)
+            time.sleep(VER_CODE_TIME)
 
     """生成草稿订单"""
     def create_draft(self, regNumber=None):
@@ -300,13 +301,8 @@ class Task(object):
         if res['isSuccess']:
             logger.info("------草稿订单创建成功------")
 
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-                # 创建获取验证码并启动线程
-                executor.submit(self.create_captcha)
-                # 创建查询车辆信息并启动线程
-                executor.submit(self.search_vehicles, regNumber)
-                # 等待所以线程结束
-                executor.shutdown(wait=True)
+            # 查询车辆信息
+            self.search_vehicles(regNumber)
 
             reservationRequestId = res['entity']['reservationRequestId']
             # 更新车辆信息
@@ -520,7 +516,10 @@ if __name__ == '__main__':
         is_success = False
         submit_num = 0
         while not is_success:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+                # 获取验证码
+                future_code = executor.submit(task.create_captcha)
+
                 # Step1: 新建草稿订单
                 future_one = executor.submit(task.create_draft, regNumber)
 
