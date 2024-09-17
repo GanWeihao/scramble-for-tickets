@@ -1,8 +1,10 @@
-import os
-import time
 import datetime
 
 import requests
+
+from src.Logging import Logging
+
+logger = Logging(__name__).get_logger()
 
 '''计算时间相差小时数'''
 def time_delta(begin_time, end_time):
@@ -36,6 +38,7 @@ def get_code_new(base64):
     }
     r = requests.post('http://upload.chaojiying.net/Upload/Processing.php', data=params, headers=headers)
     recognized_text = r.json()['pic_str']
+    logger.info("------验证码识别为：%s------" % recognized_text)
     return recognized_text
 
 

@@ -54,6 +54,8 @@ headers = {
     'Sec-Fetch-Site': 'same-origin',
 }
 
+flag = True
+
 
 class Task(object):
     def __init__(self):
@@ -138,21 +140,19 @@ class Task(object):
                         EC.presence_of_element_located((By.XPATH,
                                                         '/html/body/app-root/layout-with-nav/app-flex-container/div/app-flex-item/div/app-signin/div/div[2]/div/div[3]/app-specialists-signin/div[2]/form/button')))
                     page_is_already = True
+                    if user_type == "0":
+                        user_input.send_keys(self.test_account['account'])  # 换为实际用户名
+                        time.sleep(1)
+                        pwd_input.send_keys(self.test_account['password'])  # 换为实际密码
+                    else:
+                        user_input.send_keys(self.account['account'])
+                        time.sleep(1)
+                        pwd_input.send_keys(self.account['password'])
+                    time.sleep(1)
+                    login_btn.click()
+                    logger.info("------登录成功,等待页面加载------")
                 except Exception as e:
                     logger.error('页面加载失败，准备重新加载 %s' % e)
-
-
-            if user_type == "0":
-                user_input.send_keys(self.test_account['account'])  # 换为实际用户名
-                time.sleep(1)
-                pwd_input.send_keys(self.test_account['password'])  # 换为实际密码
-            else:
-                user_input.send_keys(self.account['account'])
-                time.sleep(1)
-                pwd_input.send_keys(self.account['password'])
-            time.sleep(1)
-            login_btn.click()
-            logger.info("------登录成功,等待页面加载------")
 
             # 等待页面加载完成
             WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.XPATH,
@@ -175,8 +175,8 @@ class Task(object):
     """余票监测"""
 
     def timeslot_check(self, begin_date=None, end_date=None, time_str=None):
+        global flag
         result = {}
-        flag = True
         while flag:
             self.ckeck_cookie()
 
@@ -245,23 +245,26 @@ class Task(object):
 
     """获取图片验证码"""
     def create_captcha(self):
-        logger.info('------获取图片验证码------')
-        self.ckeck_cookie()
+        global flag
+        while flag:
+            logger.info('------获取图片验证码------')
+            self.ckeck_cookie()
 
-        request_url = cfg.get("web_info", "create_captcha_url").strip()
-        param = {}
-        headers_temp = headers
-        headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
-        res = requestUtil.request(url=request_url,
-                                  method='get',
-                                  headers=headers_temp,
-                                  param=param,
-                                  content_type='application/json',
-                                  user_type='1')
-        self.captcha = {
-            'captachaHash': res['fileDownloadName'],
-            'captachaInputText': get_code_new(res['fileContents'])
-        }
+            request_url = cfg.get("web_info", "create_captcha_url").strip()
+            param = {}
+            headers_temp = headers
+            headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
+            res = requestUtil.request(url=request_url,
+                                      method='get',
+                                      headers=headers_temp,
+                                      param=param,
+                                      content_type='application/json',
+                                      user_type='1')
+            self.captcha = {
+                'captachaHash': res['fileDownloadName'],
+                'captachaInputText': get_code_new(res['fileContents'])
+            }
+            time.sleep(5)
 
     """生成草稿订单"""
     def create_draft(self, regNumber=None):
@@ -299,9 +302,9 @@ class Task(object):
 
             with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                 # 创建获取验证码并启动线程
-                create_captcha_task = executor.submit(self.create_captcha)
+                executor.submit(self.create_captcha)
                 # 创建查询车辆信息并启动线程
-                search_vehicles_task = executor.submit(self.search_vehicles, regNumber)
+                executor.submit(self.search_vehicles, regNumber)
                 # 等待所以线程结束
                 executor.shutdown(wait=True)
 
@@ -498,66 +501,99 @@ class Task(object):
         logger.info('------Cookie有效...------')
 
 
-"""
-    新建订单启动main
-"""
-
 if __name__ == '__main__':
-    task = Task()
-    task.ckeck_cookie()
+    task_type = cfg.get("task_info", "task_type").strip()
+    if task_type == 1:
+        """新建订单任务"""
+        regNumber = cfg.get("submit_info", "reg_number").strip()
+        begin_date = cfg.get("submit_info", "begin_date").strip()
+        end_date = cfg.get("submit_info", "end_date").strip()
+        time_str = cfg.get("submit_info", "time_str").strip()
+        submit_type = cfg.get("submit_info", "submit_type").strip()
 
-    # 获取用户信息
-    future_three = task.get_user_info()
+        task = Task()
+        task.ckeck_cookie()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-        # Step1: 新建草稿订单
-        future_one = executor.submit(task.create_draft, 'AU5629')
+        # 获取用户信息
+        future_three = task.get_user_info()
 
-        # Step2: 扫描当天任意时段余票
-        future_two = executor.submit(task.timeslot_check, '2024-09-19', '2024-09-24', None)
-        # Step2: 扫描当天指定时段余票
-        # future_two = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', '12:00')
+        is_success = False
+        submit_num = 0
+        while not is_success:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                # Step1: 新建草稿订单
+                future_one = executor.submit(task.create_draft, regNumber)
 
-        # 等待所以线程结束
-        executor.shutdown(wait=True)
+                if type == 1:
+                    # Step2: 扫描当天任意时段余票
+                    future_two = executor.submit(task.timeslot_check, begin_date, end_date, None)
+                else:
+                    # Step2: 扫描当天指定时段余票
+                    future_two = executor.submit(task.timeslot_check, begin_date, end_date, time_str)
 
-        # 获取线程返回的结果
-        reservationRequestId = future_one.result()
-        arrival = future_two.result()
+                # 等待所以线程结束
+                executor.shutdown(wait=True)
 
-    # Step3: 提交订单
-    isSuccess = task.submit_draft_url(arrival, reservationRequestId)
-    if isSuccess:
-        logger.info("订单提交成功")
+                # 获取线程返回的结果
+                reservationRequest_id = future_one.result()
+                arrival = future_two.result()
+
+            # Step3: 提交订单
+            submit_num += 1
+            logger.info("------准备第%d次提交订单------" % submit_num)
+            submit_result = task.submit_draft_url(arrival, reservationRequest_id)
+            if submit_result:
+                is_success = True
+            else:
+                submit_num += 1
+                logger.info("------订单提交失败，准备第%d次尝试------" % submit_num)
+                task.create_captcha()
+                # 上述暂无余票，重新检查余票情况
+                arrival_new = task.available_slots(arrival)
+                if arrival_new is not None:
+                    is_success = task.submit_draft_url(arrival_new, reservationRequest_id)
     else:
-        # 上述暂无余票，重新检查余票情况
-        arrival_new = task.available_slots(arrival)
-        if arrival_new is not None:
-            task.create_captcha()
-            task.submit_draft_url(arrival_new, reservationRequestId)
+        """改签订单任务"""
+        reservation_id = cfg.get("reschedule_info", "reservation_id").strip()
+        begin_date = cfg.get("reschedule_info", "begin_date").strip()
+        end_date = cfg.get("reschedule_info", "end_date").strip()
+        time_str = cfg.get("reschedule_info", "time_str").strip()
+        reschedule_type = cfg.get("reschedule_info", "reschedule_type").strip()
 
+        task = Task()
+        task.ckeck_cookie()
+        is_success = False
+        reschedule_num = 0
 
-"""
-    改签订单启动main
-"""
+        if not is_success:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+                # Step1: 获取验证码
+                future_one = executor.submit(task.create_captcha)
 
-# if __name__ == '__main__':
-#     task = Task()
-#     task.ckeck_cookie()
-#     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
-#         # Step1: 获取验证码
-#         future_two = executor.submit(task.create_captcha)
-#
-#         # Step2: 扫描当天任意时段余票
-#         future_one = executor.submit(task.timeslot_check, '2024-09-27', '2024-09-29', None)
-#         # Step2: 扫描当天指定时段余票
-#         # future_one = executor.submit(task.timeslot_check,'2024-09-21', '2024-09-28', '07:00')
-#
-#         # 等待所以线程结束
-#         executor.shutdown(wait=True)
-#
-#         # 获取线程返回的结果
-#         arrival = future_one.result()
-#
-#     # Step3: 改签订单
-#     task.reschedule(arrival, '35cd6707-ed18-4854-84cc-a0a4f4cc28b0')
+                if reschedule_type == 1:
+                    # Step2: 扫描当天任意时段余票
+                    future_two = executor.submit(task.timeslot_check, begin_date, end_date, None)
+                else:
+                    # Step2: 扫描当天指定时段余票
+                    future_two = executor.submit(task.timeslot_check, begin_date, end_date, time_str)
+
+                # 等待所有线程结束
+                executor.shutdown(wait=True)
+
+                # 获取线程返回的结果
+                arrival = future_two.result()
+
+            reschedule_num += 1
+            logger.info("------准备第%d次改签订单------" % reschedule_num)
+            # Step3: 改签订单
+            reschedule_result = task.reschedule(arrival, reservation_id)
+            if reschedule_result:
+                is_success = True
+            else:
+                reschedule_num += 1
+                logger.info("------改签订单失败，准备第%d次尝试------" % reschedule_num)
+                task.create_captcha()
+                # 上述暂无余票，重新检查余票情况
+                arrival_new = task.available_slots(arrival)
+                if arrival_new is not None:
+                    is_success = task.reschedule(arrival_new, reservation_id)

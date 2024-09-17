@@ -115,7 +115,6 @@ if __name__ == '__main__':
     }
     boundary = '----WebKitFormBoundary' \
                + ''.join(random.sample(string.ascii_letters + string.digits, 16))
-    print(boundary)
 
     requestUtil = RequestUtil()
     cookies = requestUtil.load_cookie('1')
@@ -124,7 +123,6 @@ if __name__ == '__main__':
         cookieArr.append(f"{cookie.get('name')}={cookie.get('value')}")
     # 拼接cookies
     joined_cookies = "; ".join(cookieArr)
-    print(joined_cookies)
     headers['Cookie'] = joined_cookies
     headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
     args_str = multipart_form_data(param, boundary, headers)
