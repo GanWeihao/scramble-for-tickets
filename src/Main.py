@@ -24,7 +24,6 @@ logger = Logging(__name__).get_logger()
 
 requestUtil = RequestUtil()
 
-WAIT_TIME=1
 WIDTH = 720
 HEIGHT = 1280
 PIXEL_RATIO = 3.0
@@ -220,6 +219,7 @@ class Task(object):
                         break
             if flag:
                 # 延迟2秒执行，防止被墙
+                WAIT_TIME = int(cfg.get('task_info', 'WAIT_TIME').strip())
                 time.sleep(WAIT_TIME)
         return result
 
