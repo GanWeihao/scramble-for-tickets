@@ -42,7 +42,6 @@ class RequestUtil:
                 cookieArr.append(f"{cookie.get('name')}={cookie.get('value')}")
             # 拼接cookies
             joined_cookies = "; ".join(cookieArr)
-            print(joined_cookies)
             headers['Cookie'] = joined_cookies
             headers['Content-Type'] = content_type
             logger.info("------请求URL：%s------" % url)
