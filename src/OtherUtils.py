@@ -2,13 +2,11 @@ import datetime
 import time
 import ddddocr
 
-import requests
-
 from src.Logging import Logging
 
 logger = Logging(__name__).get_logger()
 
-ocr = ddddocr.DdddOcr()
+ocr = ddddocr.DdddOcr(beta=True)
 
 '''计算时间相差小时数'''
 def time_delta(begin_time, end_time):
@@ -28,7 +26,7 @@ def date_delta(begin_date, end_date):
 
 '''识别图片验证码'''
 def get_code_new(base64):
-    result = ocr.classification(base64)
+    result = ocr.classification(base64, png_fix=True)
     logger.info("------验证码识别为：%s------" % result)
     return result
 
