@@ -202,25 +202,26 @@ class Task(object):
                     slot = res['capacities'][idx]
                     if time_str is not None:
                         slot_time = slot['slotTime'].replace(" ", "")
-                        logger.info(
-                            f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
+
                         if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
+                            logger.info(f'{slot['slotDate']} {slot_time[0:5]}有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
                             result['arrivalDatePlan'] = slot['slotDate']
                             result['intervalIndex'] = idx % 23
                             flag = False
                             break
                     else:
                         slot_time = slot['slotTime'].replace(" ", "")
-                        logger.info(
-                            f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
                         if int(slot['capacityPortal']['free']) > 0:
+                            logger.info(
+                                f'{slot['slotDate']} {slot_time[0:5]}有余票：{int(slot['capacityPortal']['free']) > 0}')
                             result['arrivalDatePlan'] = slot['slotDate']
                             result['intervalIndex'] = idx % 23
                             flag = False
                             break
                 if flag:
+                    logger.info('------所选日期暂无余票，持续监测中------')
                     # 延迟2秒执行，防止被墙
-                    WAIT_TIME = int(cfg.get('task_info', 'WAIT_TIME').strip())
+                    WAIT_TIME = float(cfg.get('task_info', 'WAIT_TIME').strip())
                     time.sleep(WAIT_TIME)
             except Exception as e:
                 logger.exception(e)
