@@ -1,10 +1,14 @@
 import datetime
+import time
+import ddddocr
 
 import requests
 
 from src.Logging import Logging
 
 logger = Logging(__name__).get_logger()
+
+ocr = ddddocr.DdddOcr()
 
 '''计算时间相差小时数'''
 def time_delta(begin_time, end_time):
@@ -24,22 +28,9 @@ def date_delta(begin_date, end_date):
 
 '''识别图片验证码'''
 def get_code_new(base64):
-    im = base64.replace("data:image/png;base64,", "")
-    headers = {
-        'Connection': 'Keep-Alive',
-        'User-Agent': 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0)',
-    }
-    params = {
-        'user': 'QIngshang77',
-        'pass': 'QIngshang77.',
-        'softid': '961760',
-        'codetype': 1006,
-        'file_base64': im
-    }
-    r = requests.post('http://upload.chaojiying.net/Upload/Processing.php', data=params, headers=headers)
-    recognized_text = r.json()['pic_str']
-    logger.info("------验证码识别为：%s------" % recognized_text)
-    return recognized_text
+    result = ocr.classification(base64)
+    logger.info("------验证码识别为：%s------" % result)
+    return result
 
 
 def build_timeslot(arrival):
@@ -97,4 +88,13 @@ def format_from_data(data, args_str='', jion_str='', boundary='', filedname='', 
 
 
 if __name__ == '__main__':
-    print(date_delta('2024-09-17', '2024-09-27'))
+    flag = True
+    while flag:
+        btime = time.time()
+        while flag:
+            etime = time.time()
+            if etime - btime >= 5:
+                flag = False
+                break
+            print("没到5秒")
+    print("结束")
