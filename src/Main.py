@@ -177,51 +177,55 @@ class Task(object):
         global flag
         result = {}
         while flag:
-            self.ckeck_cookie()
+            try:
+                self.ckeck_cookie()
 
-            request_url = cfg.get("web_info", "timeslot_registry_url").strip()
-            params = {
-                'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
-                'startDate': begin_date,
-                'endDate': end_date,
-                'startTime': '00:00',
-                'endTime': '23:59',
-                'pageIndex': 1,
-                'pageSize': date_delta(begin_date, end_date) * 24
-            }
-            headers_temp = headers
-            headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
-            res = requestUtil.request(url=request_url,
-                                      method='get',
-                                      headers=headers_temp,
-                                      param=params,
-                                      content_type='application/json',
-                                      user_type='0')
-            for idx in range(len(res['capacities'])):
-                slot = res['capacities'][idx]
-                if time_str is not None:
-                    slot_time = slot['slotTime'].replace(" ", "")
-                    logger.info(
-                        f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
-                    if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
-                        result['arrivalDatePlan'] = slot['slotDate']
-                        result['intervalIndex'] = idx % 23
-                        flag = False
-                        break
-                else:
-                    slot_time = slot['slotTime'].replace(" ", "")
-                    logger.info(
-                        f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
-                    if int(slot['capacityPortal']['free']) > 0:
-                        result['arrivalDatePlan'] = slot['slotDate']
-                        result['intervalIndex'] = idx % 23
-                        flag = False
-                        break
-            if flag:
-                # 延迟2秒执行，防止被墙
-                WAIT_TIME = int(cfg.get('task_info', 'WAIT_TIME').strip())
-                time.sleep(WAIT_TIME)
+                request_url = cfg.get("web_info", "timeslot_registry_url").strip()
+                params = {
+                    'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
+                    'startDate': begin_date,
+                    'endDate': end_date,
+                    'startTime': '00:00',
+                    'endTime': '23:59',
+                    'pageIndex': 1,
+                    'pageSize': date_delta(begin_date, end_date) * 24
+                }
+                headers_temp = headers
+                headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
+                res = requestUtil.request(url=request_url,
+                                          method='get',
+                                          headers=headers_temp,
+                                          param=params,
+                                          content_type='application/json',
+                                          user_type='0')
+                for idx in range(len(res['capacities'])):
+                    slot = res['capacities'][idx]
+                    if time_str is not None:
+                        slot_time = slot['slotTime'].replace(" ", "")
+                        logger.info(
+                            f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
+                        if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
+                            result['arrivalDatePlan'] = slot['slotDate']
+                            result['intervalIndex'] = idx % 23
+                            flag = False
+                            break
+                    else:
+                        slot_time = slot['slotTime'].replace(" ", "")
+                        logger.info(
+                            f'{slot['slotDate']} {slot_time[0:5]}是否有余票：{int(slot['capacityPortal']['free']) > 0}')
+                        if int(slot['capacityPortal']['free']) > 0:
+                            result['arrivalDatePlan'] = slot['slotDate']
+                            result['intervalIndex'] = idx % 23
+                            flag = False
+                            break
+                if flag:
+                    # 延迟2秒执行，防止被墙
+                    WAIT_TIME = int(cfg.get('task_info', 'WAIT_TIME').strip())
+                    time.sleep(WAIT_TIME)
+            except Exception as e:
+                logger.exception(e)
         return result
+
 
     """获取用户信息"""
 
