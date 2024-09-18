@@ -1,6 +1,7 @@
 import datetime
 import time
 import ddddocr
+import requests
 
 from src.Logging import Logging
 
@@ -25,10 +26,29 @@ def date_delta(begin_date, end_date):
 
 
 '''识别图片验证码'''
-def get_code_new(base64):
+def get_code_new_py(base64):
     result = ocr.classification(base64, png_fix=True)
     logger.info("------验证码识别为：%s------" % result)
     return result
+
+
+def get_code_new(base64):
+    im = base64.replace("data:image/png;base64,", "")
+    headers = {
+        'Connection': 'Keep-Alive',
+        'User-Agent': 'Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 5.1; Trident/4.0)',
+    }
+    params = {
+        'user': 'QIngshang77',
+        'pass': 'QIngshang77.',
+        'softid': '961760',
+        'codetype': 1006,
+        'file_base64': im
+    }
+    r = requests.post('http://upload.chaojiying.net/Upload/Processing.php', data=params, headers=headers)
+    recognized_text = r.json()['pic_str']
+    logger.info("------验证码识别为：%s------" % recognized_text)
+    return recognized_text
 
 
 def build_timeslot(arrival):
