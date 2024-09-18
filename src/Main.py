@@ -479,6 +479,7 @@ class Task(object):
             for slot in res['slots']:
                 if int(slot['count']) > 0:
                     arrival['intervalIndex'] = int(slot['intervalIndex'])
+                    arrival['arrivalDatePlan'] = arrival['arrivalDatePlan']
                     return arrival
         logger.error("暂无余票，重新监测")
         return None
@@ -525,6 +526,7 @@ if __name__ == '__main__':
         is_success = False
         submit_num = 0
         while not is_success:
+            flag = True
             try:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                     # 获取验证码
@@ -578,6 +580,7 @@ if __name__ == '__main__':
         is_success = False
         reschedule_num = 0
         while not is_success:
+            flag = True
             try:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                     # Step1: 获取验证码
