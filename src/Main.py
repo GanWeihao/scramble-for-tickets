@@ -252,8 +252,8 @@ class Task(object):
     def create_captcha(self):
         global flag
         VER_CODE_TIME = int(cfg.get('task_info', 'VER_CODE_TIME').strip())
-        begin_time = time.time()
         while flag:
+            begin_time = time.time()
             logger.info('------获取图片验证码------')
             self.ckeck_cookie()
 
