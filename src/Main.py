@@ -499,7 +499,7 @@ class Task(object):
 
 if __name__ == '__main__':
     task_type = cfg.get("task_info", "task_type").strip()
-    if task_type == 1:
+    if task_type == '1':
         """新建订单任务"""
         regNumber = cfg.get("submit_info", "reg_number").strip()
         begin_date = cfg.get("submit_info", "begin_date").strip()
@@ -524,7 +524,7 @@ if __name__ == '__main__':
                     # Step1: 新建草稿订单
                     future_one = executor.submit(task.create_draft, regNumber)
 
-                    if type == 1:
+                    if submit_type == '1':
                         # Step2: 扫描当天任意时段余票
                         future_two = executor.submit(task.timeslot_check, begin_date, end_date, None)
                     else:
@@ -574,7 +574,7 @@ if __name__ == '__main__':
                     # Step1: 获取验证码
                     future_one = executor.submit(task.create_captcha)
 
-                    if reschedule_type == 1:
+                    if reschedule_type == '1':
                         # Step2: 扫描当天任意时段余票
                         future_two = executor.submit(task.timeslot_check, begin_date, end_date, None)
                     else:
