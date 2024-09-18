@@ -85,7 +85,7 @@ class Task(object):
         # 设置默认编码为utf-8，也就是中文
         self.chrome_options.add_argument('lang=zh_CN.UTF-8')
         # 禁止硬件加速
-        # self.chrome_options.add_argument('--disable-gpu')
+        self.chrome_options.add_argument('--disable-gpu')
         # 取消沙盒模式
         self.chrome_options.add_argument('--no-sandbox')
         # 禁止弹窗广告
@@ -94,6 +94,8 @@ class Task(object):
         self.chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
         # 此方法针对V78版本及以上有效，同时可以解决部分网站白屏的问题。
         self.chrome_options.add_experimental_option('useAutomationExtension', False)
+        # 禁用浏览器自动化检测功能
+        self.chrome_options.add_argument("--disable-blink-features=AutomationControlled")
         # ##大量渲染时候写入/tmp而非/dev/shm
         self.chrome_options.add_argument("-–disable-dev-shm-usage")
         # 打开开发者控制台
