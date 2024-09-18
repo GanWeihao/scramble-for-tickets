@@ -564,9 +564,12 @@ if __name__ == '__main__':
                     logger.info("------订单提交失败，准备第%d次尝试------" % submit_num)
                     # 重新获取验证码
                     flag = True
-                    task.create_captcha()
-                    # 上述暂无余票，重新检查余票情况
-                    arrival_new = task.available_slots(arrival)
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as resubmit_executor:
+                        resubmit_executor.submit(task.create_captcha)
+                        # 上述暂无余票，重新检查余票情况
+                        available_slots_task = resubmit_executor.submit(task.available_slots, arrival)
+                        resubmit_executor.shutdown(wait=True)
+                        arrival_new = available_slots_task.result()
                     if arrival_new is not None:
                         is_success = task.submit_draft_url(arrival_new, reservationRequest_id)
             except Exception as e:
