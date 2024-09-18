@@ -252,6 +252,7 @@ class Task(object):
     def create_captcha(self):
         global flag
         VER_CODE_TIME = int(cfg.get('task_info', 'VER_CODE_TIME').strip())
+        begin_time = time.time()
         while flag:
             logger.info('------获取图片验证码------')
             self.ckeck_cookie()
@@ -270,7 +271,10 @@ class Task(object):
                 'captachaHash': res['fileDownloadName'],
                 'captachaInputText': get_code_new(res['fileContents'])
             }
-            time.sleep(VER_CODE_TIME)
+            while flag:
+                end_time = time.time()
+                if end_time - begin_time >= VER_CODE_TIME:
+                    break
 
     """生成草稿订单"""
     def create_draft(self, regNumber=None):
