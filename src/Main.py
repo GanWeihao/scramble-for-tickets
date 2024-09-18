@@ -457,6 +457,7 @@ class Task(object):
 
     """查询余票情况"""
     def available_slots(self, arrival):
+        global flag
         logger.info("------查询余票情况------")
         self.ckeck_cookie()
 
@@ -482,6 +483,7 @@ class Task(object):
                 if int(slot['count']) > 0:
                     arrival['intervalIndex'] = int(slot['intervalIndex'])
                     arrival['arrivalDatePlan'] = arrival['arrivalDatePlan']
+                    flag = False
                     return arrival
         logger.error("暂无余票，重新监测")
         return None
@@ -510,6 +512,8 @@ class Task(object):
 
 
 if __name__ == '__main__':
+    task = Task()
+    task.ckeck_cookie()
     task_type = cfg.get("task_info", "task_type").strip()
     if task_type == '1':
         """新建订单任务"""
@@ -519,14 +523,12 @@ if __name__ == '__main__':
         time_str = cfg.get("submit_info", "time_str").strip()
         submit_type = cfg.get("submit_info", "submit_type").strip()
 
-        task = Task()
-        task.ckeck_cookie()
-
         # 获取用户信息
         future_three = task.get_user_info()
 
         is_success = False
         submit_num = 0
+        reservationRequest_id = ''
         while not is_success:
             flag = True
             try:
@@ -535,7 +537,8 @@ if __name__ == '__main__':
                     future_code = executor.submit(task.create_captcha)
 
                     # Step1: 新建草稿订单
-                    future_one = executor.submit(task.create_draft, regNumber)
+                    if reservationRequest_id == '':
+                        future_one = executor.submit(task.create_draft, regNumber)
 
                     if submit_type == '1':
                         # Step2: 扫描当天任意时段余票
@@ -543,12 +546,11 @@ if __name__ == '__main__':
                     else:
                         # Step2: 扫描当天指定时段余票
                         future_two = executor.submit(task.timeslot_check, begin_date, end_date, time_str)
-
                     # 等待所以线程结束
                     executor.shutdown(wait=True)
-
                     # 获取线程返回的结果
-                    reservationRequest_id = future_one.result()
+                    if reservationRequest_id == '':
+                        reservationRequest_id = future_one.result()
                     arrival = future_two.result()
 
                 # Step3: 提交订单
@@ -560,6 +562,8 @@ if __name__ == '__main__':
                 else:
                     submit_num += 1
                     logger.info("------订单提交失败，准备第%d次尝试------" % submit_num)
+                    # 重新获取验证码
+                    flag = True
                     task.create_captcha()
                     # 上述暂无余票，重新检查余票情况
                     arrival_new = task.available_slots(arrival)
@@ -577,8 +581,6 @@ if __name__ == '__main__':
         time_str = cfg.get("reschedule_info", "time_str").strip()
         reschedule_type = cfg.get("reschedule_info", "reschedule_type").strip()
 
-        task = Task()
-        task.ckeck_cookie()
         is_success = False
         reschedule_num = 0
         while not is_success:
@@ -587,17 +589,14 @@ if __name__ == '__main__':
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                     # Step1: 获取验证码
                     future_one = executor.submit(task.create_captcha)
-
                     if reschedule_type == '1':
                         # Step2: 扫描当天任意时段余票
                         future_two = executor.submit(task.timeslot_check, begin_date, end_date, None)
                     else:
                         # Step2: 扫描当天指定时段余票
                         future_two = executor.submit(task.timeslot_check, begin_date, end_date, time_str)
-
                     # 等待所有线程结束
                     executor.shutdown(wait=True)
-
                     # 获取线程返回的结果
                     arrival = future_two.result()
 
@@ -610,6 +609,8 @@ if __name__ == '__main__':
                 else:
                     reschedule_num += 1
                     logger.info("------改签订单失败，准备第%d次尝试------" % reschedule_num)
+                    # 重新获取验证码
+                    flag = True
                     task.create_captcha()
                     # 上述暂无余票，重新检查余票情况
                     arrival_new = task.available_slots(arrival)

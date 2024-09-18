@@ -18,7 +18,7 @@ class Logging(object):
         self.logger = logging.getLogger(logger)
         self.logger.setLevel(logging.DEBUG)
         # 创建一个handler，用于写入日志文件
-        self.log_time = time.strftime("%Y_%m_%d")
+        self.log_time = time.strftime("%Y_%m_%d_%H_%M_%S")
         file_dir = os.path.join(os.getcwd(), '../log')
         if not os.path.exists(file_dir):
             os.mkdir(file_dir)
