@@ -13,7 +13,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.wait import WebDriverWait
 
 from src.Logging import Logging
-from src.OtherUtils import time_delta, get_code_new, build_timeslot, date_delta
+from src.OtherUtils import time_delta, get_code_new, build_timeslot, date_delta, get_code_new_py
 from src.RequestUtil import RequestUtil
 
 cfg = configparser.RawConfigParser()
@@ -485,6 +485,7 @@ class Task(object):
                     arrival['arrivalDatePlan'] = arrival['arrivalDatePlan']
                     flag = False
                     return arrival
+        flag = False
         logger.error("暂无余票，重新监测")
         return None
 
