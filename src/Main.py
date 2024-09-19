@@ -175,22 +175,19 @@ class Task(object):
 
     """余票监测"""
 
-    def timeslot_check(self, begin_date=None, end_date=None, time_str=None):
+    def timeslot_check(self, begin_date=None, end_date=None):
         global flag
         result = {}
+        facilityIdFilter = '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42'
+        free_key = ''
         while flag:
             try:
                 self.ckeck_cookie()
 
                 request_url = cfg.get("web_info", "timeslot_registry_url").strip()
                 params = {
-                    'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
                     'startDate': begin_date,
                     'endDate': end_date,
-                    'startTime': '00:00',
-                    'endTime': '23:59',
-                    'pageIndex': 1,
-                    'pageSize': date_delta(begin_date, end_date) * 24
                 }
                 headers_temp = headers
                 headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
@@ -200,26 +197,16 @@ class Task(object):
                                           param=params,
                                           content_type='application/json',
                                           user_type='0')
-                for idx in range(len(res['capacities'])):
-                    slot = res['capacities'][idx]
-                    if time_str is not None:
-                        slot_time = slot['slotTime'].replace(" ", "")
-
-                        if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
-                            logger.info(f'{slot['slotDate']} {slot_time[0:5]}有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
-                            result['arrivalDatePlan'] = slot['slotDate']
-                            result['intervalIndex'] = idx % 23
-                            flag = False
-                            break
-                    else:
-                        slot_time = slot['slotTime'].replace(" ", "")
-                        if int(slot['capacityPortal']['free']) > 0:
-                            logger.info(
-                                f'{slot['slotDate']} {slot_time[0:5]}有余票：{int(slot['capacityPortal']['free']) > 0}')
-                            result['arrivalDatePlan'] = slot['slotDate']
-                            result['intervalIndex'] = idx % 23
-                            flag = False
-                            break
+                for idx in range(len(res['entries'])):
+                    timeslot = res['entries'][idx]
+                    if timeslot['facilityId'] == facilityIdFilter:
+                        for key in timeslot['capacitiesByDates']:
+                            if int(timeslot['capacitiesByDates'][key]['capacityPortal']['free']) > 0:
+                                free_key = key
+                                break
+                    if free_key != '':
+                        flag = False
+                        break
                 if flag:
                     logger.info('------所选日期暂无余票，持续监测中------')
                     # 延迟2秒执行，防止被墙
@@ -227,6 +214,7 @@ class Task(object):
                     time.sleep(WAIT_TIME)
             except Exception as e:
                 logger.exception(e)
+        result['arrivalDatePlan'] = free_key
         return result
 
 
@@ -483,6 +471,7 @@ class Task(object):
                 if int(slot['count']) > 0:
                     arrival['intervalIndex'] = int(slot['intervalIndex'])
                     arrival['arrivalDatePlan'] = arrival['arrivalDatePlan']
+                    logger.info(f"{arrival['arrivalDatePlan']} {slot['slotCaption']}: 有余票")
                     flag = False
                     return arrival
         flag = False
@@ -521,11 +510,9 @@ if __name__ == '__main__':
         regNumber = cfg.get("submit_info", "reg_number").strip()
         begin_date = cfg.get("submit_info", "begin_date").strip()
         end_date = cfg.get("submit_info", "end_date").strip()
-        time_str = cfg.get("submit_info", "time_str").strip()
-        submit_type = cfg.get("submit_info", "submit_type").strip()
 
         # 获取用户信息
-        future_three = task.get_user_info()
+        task.get_user_info()
 
         is_success = False
         submit_num = 0
@@ -534,45 +521,27 @@ if __name__ == '__main__':
             flag = True
             try:
                 with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                    # 获取验证码
+                    # Step1 获取验证码
                     future_code = executor.submit(task.create_captcha)
-
-                    # Step1: 新建草稿订单
+                    # Step2: 新建草稿订单
                     if reservationRequest_id == '':
                         future_one = executor.submit(task.create_draft, regNumber)
-
-                    if submit_type == '1':
-                        # Step2: 扫描当天任意时段余票
-                        future_two = executor.submit(task.timeslot_check, begin_date, end_date, None)
-                    else:
-                        # Step2: 扫描当天指定时段余票
-                        future_two = executor.submit(task.timeslot_check, begin_date, end_date, time_str)
-                    # 等待所以线程结束
+                    # Step3: 扫描当天任意时段余票
+                    future_two = executor.submit(task.timeslot_check, begin_date, end_date)
+                    # 等待所有线程结束
                     executor.shutdown(wait=True)
                     # 获取线程返回的结果
                     if reservationRequest_id == '':
                         reservationRequest_id = future_one.result()
                     arrival = future_two.result()
-
-                # Step3: 提交订单
+                # Step4: 查看余票详情
+                arrival_new = task.available_slots(arrival)
+                # Step5: 提交订单
                 submit_num += 1
                 logger.info("------准备第%d次提交订单------" % submit_num)
-                submit_result = task.submit_draft_url(arrival, reservationRequest_id)
+                submit_result = task.submit_draft_url(arrival_new, reservationRequest_id)
                 if submit_result:
                     is_success = True
-                else:
-                    submit_num += 1
-                    logger.info("------订单提交失败，准备第%d次尝试------" % submit_num)
-                    # 重新获取验证码
-                    flag = True
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as resubmit_executor:
-                        resubmit_executor.submit(task.create_captcha)
-                        # 上述暂无余票，重新检查余票情况
-                        available_slots_task = resubmit_executor.submit(task.available_slots, arrival)
-                        resubmit_executor.shutdown(wait=True)
-                        arrival_new = available_slots_task.result()
-                    if arrival_new is not None:
-                        is_success = task.submit_draft_url(arrival_new, reservationRequest_id)
             except Exception as e:
                 # 处理其他所有异常
                 logger.exception("******发现错误%s，准备重试******" % e)
@@ -582,8 +551,6 @@ if __name__ == '__main__':
         reservation_id = cfg.get("reschedule_info", "reservation_id").strip()
         begin_date = cfg.get("reschedule_info", "begin_date").strip()
         end_date = cfg.get("reschedule_info", "end_date").strip()
-        time_str = cfg.get("reschedule_info", "time_str").strip()
-        reschedule_type = cfg.get("reschedule_info", "reschedule_type").strip()
 
         is_success = False
         reschedule_num = 0
@@ -593,33 +560,20 @@ if __name__ == '__main__':
                 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
                     # Step1: 获取验证码
                     future_one = executor.submit(task.create_captcha)
-                    if reschedule_type == '1':
-                        # Step2: 扫描当天任意时段余票
-                        future_two = executor.submit(task.timeslot_check, begin_date, end_date, None)
-                    else:
-                        # Step2: 扫描当天指定时段余票
-                        future_two = executor.submit(task.timeslot_check, begin_date, end_date, time_str)
+                    # Step2: 扫描当天任意时段余票
+                    future_two = executor.submit(task.timeslot_check, begin_date, end_date)
                     # 等待所有线程结束
                     executor.shutdown(wait=True)
                     # 获取线程返回的结果
                     arrival = future_two.result()
-
+                # Step3: 查看余票详情
+                arrival_new = task.available_slots(arrival)
                 reschedule_num += 1
                 logger.info("------准备第%d次改签订单------" % reschedule_num)
-                # Step3: 改签订单
-                reschedule_result = task.reschedule(arrival, reservation_id)
+                # Step4: 改签订单
+                reschedule_result = task.reschedule(arrival_new, reservation_id)
                 if reschedule_result:
                     is_success = True
-                else:
-                    reschedule_num += 1
-                    logger.info("------改签订单失败，准备第%d次尝试------" % reschedule_num)
-                    # 重新获取验证码
-                    flag = True
-                    task.create_captcha()
-                    # 上述暂无余票，重新检查余票情况
-                    arrival_new = task.available_slots(arrival)
-                    if arrival_new is not None:
-                        is_success = task.reschedule(arrival_new, reservation_id)
             except Exception as e:
                 # 处理其他所有异常
                 logger.exception("******发现错误%s，准备重试******" % e)
