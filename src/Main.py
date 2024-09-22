@@ -208,7 +208,7 @@ class Task(object):
                         if slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0:
                             logger.info(f'{slot['slotDate']} {slot_time[0:5]}有余票：{slot_time[0:5] == time_str and int(slot['capacityPortal']['free']) > 0}')
                             result['arrivalDatePlan'] = slot['slotDate']
-                            result['intervalIndex'] = idx % 23
+                            result['intervalIndex'] = idx % 24
                             flag = False
                             break
                     else:
@@ -217,7 +217,7 @@ class Task(object):
                             logger.info(
                                 f'{slot['slotDate']} {slot_time[0:5]}有余票：{int(slot['capacityPortal']['free']) > 0}')
                             result['arrivalDatePlan'] = slot['slotDate']
-                            result['intervalIndex'] = idx % 23
+                            result['intervalIndex'] = idx % 24
                             flag = False
                             break
                 if flag:
