@@ -27,6 +27,7 @@ def date_delta(begin_date, end_date):
 
 '''识别图片验证码'''
 def get_code_new_py(base64):
+    ocr.set_ranges(0)
     result = ocr.classification(base64, png_fix=True)
     logger.info("------验证码识别为：%s------" % result)
     return result
