@@ -256,33 +256,25 @@ class Task(object):
 
     """获取图片验证码"""
     def create_captcha(self):
-        global flag
-        VER_CODE_TIME = int(cfg.get('task_info', 'VER_CODE_TIME').strip())
-        while flag:
-            begin_time = time.time()
-            logger.info('------获取图片验证码------')
-            self.ckeck_cookie()
+        logger.info('------获取图片验证码------')
+        self.ckeck_cookie()
 
-            request_url = cfg.get("web_info", "create_captcha_url").strip()
-            param = {}
-            headers_temp = headers
-            headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
-            res = requestUtil.request(url=request_url,
-                                      method='get',
-                                      headers=headers_temp,
-                                      param=param,
-                                      content_type='application/json',
-                                      user_type='1')
-            res = res.json()
-            logger.info("------响应报文：%s------" % res)
-            self.captcha = {
-                'captachaHash': res['fileDownloadName'],
-                'captachaInputText': get_code_new(res['fileContents'])
-            }
-            while flag:
-                end_time = time.time()
-                if end_time - begin_time >= VER_CODE_TIME:
-                    break
+        request_url = cfg.get("web_info", "create_captcha_url").strip()
+        param = {}
+        headers_temp = headers
+        headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
+        res = requestUtil.request(url=request_url,
+                                  method='get',
+                                  headers=headers_temp,
+                                  param=param,
+                                  content_type='application/json',
+                                  user_type='1')
+        res = res.json()
+        logger.info("------响应报文：%s------" % res)
+        self.captcha = {
+            'captachaHash': res['fileDownloadName'],
+            'captachaInputText': get_code_new(res['fileContents'])
+        }
 
     """生成草稿订单"""
     def create_draft(self, regNumber=None):
@@ -473,7 +465,6 @@ class Task(object):
 
     """查询余票情况"""
     def available_slots(self, arrival):
-        global flag
         logger.info("------查询余票情况------")
         self.ckeck_cookie()
 
@@ -500,9 +491,7 @@ class Task(object):
                 if int(slot['count']) > 0:
                     arrival['intervalIndex'] = int(slot['intervalIndex'])
                     arrival['arrivalDatePlan'] = arrival['arrivalDatePlan']
-                    flag = False
                     return arrival
-        flag = False
         logger.error("暂无余票，重新监测")
         return None
 
@@ -580,9 +569,8 @@ if __name__ == '__main__':
                 else:
                     submit_num += 1
                     logger.info("------订单提交失败，准备第%d次尝试------" % submit_num)
-                    # 重新获取验证码
-                    flag = True
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as resubmit_executor:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as resubmit_executor:
+                        # 重新获取验证码
                         resubmit_executor.submit(task.create_captcha)
                         # 上述暂无余票，重新检查余票情况
                         available_slots_task = resubmit_executor.submit(task.available_slots, arrival)
@@ -631,7 +619,6 @@ if __name__ == '__main__':
                     reschedule_num += 1
                     logger.info("------改签订单失败，准备第%d次尝试------" % reschedule_num)
                     # 重新获取验证码
-                    flag = True
                     task.create_captcha()
                     # 上述暂无余票，重新检查余票情况
                     arrival_new = task.available_slots(arrival)
