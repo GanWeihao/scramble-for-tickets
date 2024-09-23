@@ -201,7 +201,7 @@ class Task(object):
                                           content_type='application/json',
                                           user_type='0')
                 res = res.json()
-                logger.info("------响应报文：%s------" % res.json())
+                logger.info("------响应报文：%s------" % res)
                 for idx in range(len(res['capacities'])):
                     slot = res['capacities'][idx]
                     if time_str is not None:
@@ -251,7 +251,7 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         res = res.json()
-        logger.info("------响应报文：%s------" % res.json())
+        logger.info("------响应报文：%s------" % res)
         self.user_info = res
 
     """获取图片验证码"""
@@ -274,7 +274,7 @@ class Task(object):
                                       content_type='application/json',
                                       user_type='1')
             res = res.json()
-            logger.info("------响应报文：%s------" % res.json())
+            logger.info("------响应报文：%s------" % res)
             self.captcha = {
                 'captachaHash': res['fileDownloadName'],
                 'captachaInputText': get_code_new(res['fileContents'])
@@ -316,7 +316,7 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         res = res.json()
-        logger.info("------响应报文：%s------" % res.json())
+        logger.info("------响应报文：%s------" % res)
         if res['isSuccess']:
             logger.info("------草稿订单创建成功------")
 
@@ -349,7 +349,7 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         res = res.json()
-        logger.info("------响应报文：%s------" % res.json())
+        logger.info("------响应报文：%s------" % res)
         if len(res['payload']) <= 0:
             raise ValueError('暂无可用车辆')
         for vehicle in res['payload']:
@@ -396,7 +396,7 @@ class Task(object):
                                   content_type='multipart/form-data',
                                   user_type='1')
         res = res.json()
-        logger.info("------响应报文：%s------" % res.json())
+        logger.info("------响应报文：%s------" % res)
         if res['isSuccess']:
             logger.info("更新车辆信息成功")
         else:
@@ -430,7 +430,7 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         res = res.json()
-        logger.info("------响应报文：%s------" % res.json())
+        logger.info("------响应报文：%s------" % res)
         if res['isSuccess']:
             logger.info("订单提交成功")
             return True
@@ -463,7 +463,7 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         res = res.json()
-        logger.info("------响应报文：%s------" % res.json())
+        logger.info("------响应报文：%s------" % res)
         if res['isSuccess']:
             logger.info("------订单改签成功------")
             return True
@@ -494,7 +494,7 @@ class Task(object):
                                   content_type='application/json',
                                   user_type='1')
         res = res.json()
-        logger.info("------响应报文：%s------" % res.json())
+        logger.info("------响应报文：%s------" % res)
         if len(res['slots']) > 0:
             for slot in res['slots']:
                 if int(slot['count']) > 0:
