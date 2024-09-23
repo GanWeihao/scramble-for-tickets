@@ -240,31 +240,24 @@ class Task(object):
 
     """获取图片验证码"""
     def create_captcha(self):
-        global flag
-        VER_CODE_TIME = int(cfg.get('task_info', 'VER_CODE_TIME').strip())
-        while flag:
-            begin_time = time.time()
-            logger.info('------获取图片验证码------')
-            self.ckeck_cookie()
+        begin_time = time.time()
+        logger.info('------获取图片验证码------')
+        self.ckeck_cookie()
 
-            request_url = cfg.get("web_info", "create_captcha_url").strip()
-            param = {}
-            headers_temp = headers
-            headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
-            res = requestUtil.request(url=request_url,
-                                      method='get',
-                                      headers=headers_temp,
-                                      param=param,
-                                      content_type='application/json',
-                                      user_type='1')
-            self.captcha = {
-                'captachaHash': res['fileDownloadName'],
-                'captachaInputText': get_code_new(res['fileContents'])
-            }
-            while flag:
-                end_time = time.time()
-                if end_time - begin_time >= VER_CODE_TIME:
-                    break
+        request_url = cfg.get("web_info", "create_captcha_url").strip()
+        param = {}
+        headers_temp = headers
+        headers_temp['referer'] = 'https://eopp.epd-portal.ru/en/reservations/new/reservation'
+        res = requestUtil.request(url=request_url,
+                                  method='get',
+                                  headers=headers_temp,
+                                  param=param,
+                                  content_type='application/json',
+                                  user_type='1')
+        self.captcha = {
+            'captachaHash': res['fileDownloadName'],
+            'captachaInputText': get_code_new(res['fileContents'])
+        }
 
     """生成草稿订单"""
     def create_draft(self, regNumber=None):
