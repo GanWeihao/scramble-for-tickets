@@ -48,27 +48,23 @@ class RequestUtil:
             logger.info("------请求参数：%s------" % param)
             if method == 'get':
                 # .json() 返回的是json的数据
-                res = requests.get(url=url, params=param, headers=headers).json()
-                logger.info("------响应报文：%s------" % res)
-                return res
+                result = requests.get(url=url, params=param, headers=headers)
+                return result
             elif method == 'post':
                 # 判断content_type，是表单还是json的请求
                 if content_type == 'application/json':
-                    res = requests.post(url=url, json=param, headers=headers).json()
-                    logger.info("------响应报文：%s------" % res)
-                    return res
+                    result = requests.post(url=url, json=param, headers=headers)
+                    return result
                 elif content_type == 'application/x-www-form-urlencoded':
-                    res = requests.post(url=url, json=param, headers=headers).json()
-                    logger.info("------响应报文：%s------" % res)
-                    return res
+                    result = requests.post(url=url, json=param, headers=headers)
+                    return result
                 elif content_type == 'multipart/form-data':
                     boundary = '----WebKitFormBoundary' \
                                + ''.join(random.sample(string.ascii_letters + string.digits, 16))
                     headers['Content-Type'] = f'multipart/form-data; boundary={boundary}'
                     args_str = multipart_form_data(param, boundary, headers)
-                    res = requests.post(url=url, data=args_str, headers=headers).json()
-                    logger.info("------响应报文：%s------" % res)
-                    return res
+                    result = requests.post(url=url, data=args_str, headers=headers)
+                    return result
                 else:
                     print("请输入正确的content_type")
             else:
