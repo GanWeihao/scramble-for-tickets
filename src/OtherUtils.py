@@ -107,13 +107,8 @@ def format_from_data(data, args_str='', jion_str='', boundary='', filedname='', 
 
 
 if __name__ == '__main__':
-    flag = True
-    while flag:
-        btime = time.time()
-        while flag:
-            etime = time.time()
-            if etime - btime >= 5:
-                flag = False
-                break
-            print("没到5秒")
-    print("结束")
+    # 获取当前时间（UTC时间）
+    now = datetime.datetime.utcnow()
+    # 格式化为 ISO 8601 格式，并保留毫秒
+    iso_timestamp = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+    print(iso_timestamp)

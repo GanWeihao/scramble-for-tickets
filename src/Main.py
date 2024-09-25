@@ -614,15 +614,6 @@ if __name__ == '__main__':
                 reschedule_result = task.reschedule(arrival, reservation_id)
                 if reschedule_result:
                     is_success = True
-                else:
-                    # 重新获取验证码
-                    task.create_captcha()
-                    # 上述暂无余票，重新检查余票情况
-                    arrival_new = task.available_slots(arrival)
-                    if arrival_new is not None:
-                        reschedule_num += 1
-                        logger.info("------改签订单失败，准备第%d次改签订单------" % reschedule_num)
-                        is_success = task.reschedule(arrival_new, reservation_id)
             except Exception as e:
                 # 处理其他所有异常
                 logger.exception("******发现错误%s，准备重试******" % e)
