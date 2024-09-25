@@ -1,9 +1,9 @@
-import json
 import pickle
 
 import requests
 import random, string
 
+from datetime import datetime
 from src.Logging import Logging
 from src.OtherUtils import multipart_form_data
 
@@ -44,6 +44,13 @@ class RequestUtil:
             joined_cookies = "; ".join(cookieArr)
             headers['Cookie'] = joined_cookies
             headers['Content-Type'] = content_type
+
+            # 获取当前时间（UTC时间）
+            now = datetime.utcnow()
+            # 格式化为 ISO 8601 格式，并保留毫秒
+            iso_timestamp = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
+            headers['user-local-time'] = iso_timestamp
+
             logger.info("------请求URL：%s------" % url)
             logger.info("------请求参数：%s------" % param)
             if method == 'get':
