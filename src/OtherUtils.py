@@ -7,7 +7,7 @@ from src.Logging import Logging
 
 logger = Logging(__name__).get_logger()
 
-ocr = ddddocr.DdddOcr(beta=True)
+ocr = ddddocr.DdddOcr(beta=True, show_ad=False)
 
 '''计算时间相差小时数'''
 def time_delta(begin_time, end_time):
