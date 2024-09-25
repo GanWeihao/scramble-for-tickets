@@ -212,7 +212,7 @@ class Task(object):
                             result['arrivalDatePlan'] = slot['slotDate']
                             result['intervalIndex'] = idx % 24
                             flag = False
-                            break
+                            return result
                     else:
                         slot_time = slot['slotTime'].replace(" ", "")
                         if int(slot['capacityPortal']['free']) > 0:
@@ -221,7 +221,7 @@ class Task(object):
                             result['arrivalDatePlan'] = slot['slotDate']
                             result['intervalIndex'] = idx % 24
                             flag = False
-                            break
+                            return result
                 if flag:
                     logger.info('------所选日期暂无余票，持续监测中------')
                     # 延迟2秒执行，防止被墙
@@ -229,7 +229,6 @@ class Task(object):
                     time.sleep(WAIT_TIME)
             except Exception as e:
                 logger.exception(e)
-        return result
 
 
     """获取用户信息"""
@@ -273,7 +272,7 @@ class Task(object):
         logger.info("------响应报文：%s------" % res)
         self.captcha = {
             'captachaHash': res['fileDownloadName'],
-            'captachaInputText': get_code_new(res['fileContents'])
+            'captachaInputText': get_code_new_py(res['fileContents'])
         }
 
     """生成草稿订单"""
@@ -421,9 +420,9 @@ class Task(object):
                                   param=param,
                                   content_type='application/json',
                                   user_type='1')
-        res = res.json()
-        logger.info("------响应报文：%s------" % res)
-        if res['isSuccess']:
+        result = res.json()
+        logger.info("------响应报文：%s------" % result)
+        if result['isSuccess']:
             logger.info("订单提交成功")
             return True
         else:
@@ -567,8 +566,6 @@ if __name__ == '__main__':
                 if submit_result:
                     is_success = True
                 else:
-                    submit_num += 1
-                    logger.info("------订单提交失败，准备第%d次尝试------" % submit_num)
                     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as resubmit_executor:
                         # 重新获取验证码
                         resubmit_executor.submit(task.create_captcha)
@@ -577,6 +574,8 @@ if __name__ == '__main__':
                         resubmit_executor.shutdown(wait=True)
                         arrival_new = available_slots_task.result()
                     if arrival_new is not None:
+                        submit_num += 1
+                        logger.info("------准备第%d次提交订单------" % submit_num)
                         is_success = task.submit_draft_url(arrival_new, reservationRequest_id)
             except Exception as e:
                 # 处理其他所有异常
@@ -616,13 +615,13 @@ if __name__ == '__main__':
                 if reschedule_result:
                     is_success = True
                 else:
-                    reschedule_num += 1
-                    logger.info("------改签订单失败，准备第%d次尝试------" % reschedule_num)
                     # 重新获取验证码
                     task.create_captcha()
                     # 上述暂无余票，重新检查余票情况
                     arrival_new = task.available_slots(arrival)
                     if arrival_new is not None:
+                        reschedule_num += 1
+                        logger.info("------改签订单失败，准备第%d次改签订单------" % reschedule_num)
                         is_success = task.reschedule(arrival_new, reservation_id)
             except Exception as e:
                 # 处理其他所有异常

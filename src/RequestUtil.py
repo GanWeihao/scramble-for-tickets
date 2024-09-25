@@ -49,7 +49,7 @@ class RequestUtil:
             now = datetime.utcnow()
             # 格式化为 ISO 8601 格式，并保留毫秒
             iso_timestamp = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-            headers['user-local-time'] = iso_timestamp
+            headers['User-Local-Time'] = iso_timestamp
 
             logger.info("------请求URL：%s------" % url)
             logger.info("------请求参数：%s------" % param)
