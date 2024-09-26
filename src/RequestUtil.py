@@ -17,9 +17,9 @@ class RequestUtil:
     def load_cookie(self, user_type):
         try:
             if user_type == '0':
-                cookies = pickle.load(open("../cookies_test.pkl", "rb"))  # 载入cookie
+                cookies = pickle.load(open("../other/cookies_test.pkl", "rb"))  # 载入cookie
             else:
-                cookies = pickle.load(open("../cookies.pkl", "rb"))
+                cookies = pickle.load(open("../other/cookies.pkl", "rb"))
             logger.info('------载入Cookie------')
             return cookies
         except Exception as e:
