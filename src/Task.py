@@ -287,7 +287,7 @@ class Task(object):
         logger.info("------响应报文：%s------" % res)
         self.captcha = {
             'captachaHash': res['fileDownloadName'],
-            'captachaInputText': get_code_new_py(res['fileContents'])
+            'captachaInputText': get_code_new(res['fileContents'])
         }
 
     """生成草稿订单"""
