@@ -60,9 +60,6 @@ headers = {
     'Sec-Fetch-Site': 'same-origin',
 }
 
-flag = True
-
-
 class Task(object):
     def __init__(self):
         self.driver = None
@@ -194,7 +191,7 @@ class Task(object):
     """余票监测"""
 
     def timeslot_check(self, begin_date=None, end_date=None, time_str=None):
-        global flag
+        flag = True
         result = {}
         while flag:
             try:
