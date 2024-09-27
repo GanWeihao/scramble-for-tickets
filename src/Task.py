@@ -1,4 +1,7 @@
 import os
+
+from pyvirtualdisplay import Display
+
 project_path = os.path.abspath(os.path.dirname(__file__))
 os.chdir(project_path)
 
@@ -118,7 +121,11 @@ class Task(object):
     """user_type: 0测试账号，1真实账号"""
 
     def get_cookie(self, user_type="0"):
+        display = None
         try:
+            if sys.platform.startswith("linux"):
+                display = Display(visible=False, size=(1920, 1080))
+                display.start()
             self.driver = webdriver.Chrome(executable_path=self.chromedriver,
                                            options=self.chrome_options,
                                            keep_alive=True)  # 此项稳定版打开
@@ -180,6 +187,9 @@ class Task(object):
             logger.exception(e)
             self.driver.quit()
             raise e
+        finally:
+            if display is not None:
+                display.stop()
 
     """余票监测"""
 
