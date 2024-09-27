@@ -1,6 +1,9 @@
+import os
+project_path = os.path.abspath(os.path.dirname(__file__))
+os.chdir(project_path)
+
 import configparser
 import datetime
-import os
 import pickle
 import sys
 import time
@@ -34,6 +37,8 @@ if sys.platform.startswith("win"):
 elif sys.platform.startswith("darwin"):
     print("当前系统是Mac OS")
     UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
+elif sys.platform.startswith("linux"):
+    print("当前系统是Linux")
 else:
     print("当前系统是其他操作系统")
 
@@ -70,10 +75,14 @@ class Task(object):
         # 浏览器驱动信息
         self.driver_path = cfg.get("other", "driver_path").strip()
         # 浏览器驱动
-        if sys.platform.startswith("darwin"):
-            self.chromedriver = cfg.get("other", "driver_path_mac").strip()
-        else:
+        if sys.platform.startswith("win"):
             self.chromedriver = cfg.get("other", "driver_path_chromedriver_v128").strip()
+        elif sys.platform.startswith("darwin"):
+            self.chromedriver = cfg.get("other", "driver_path_mac").strip()
+        elif sys.platform.startswith("linux"):
+            self.chromedriver = cfg.get("other", "driver_path_linux").strip()
+        else:
+            raise RuntimeError("当前操作系统不支持...")
 
         # 调用方法, 初始化浏览器信息
         self.init_browser()

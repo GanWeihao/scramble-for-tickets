@@ -1,5 +1,5 @@
 import datetime
-import time
+
 import ddddocr
 import requests
 
@@ -104,11 +104,3 @@ def format_from_data(data, args_str='', jion_str='', boundary='', filedname='', 
                 new_key = f'{filedname}[{filedindex}].{key}'
                 args_str = args_str + jion_str.format(boundary, new_key, value)
     return args_str
-
-
-if __name__ == '__main__':
-    # 获取当前时间（UTC时间）
-    now = datetime.datetime.utcnow()
-    # 格式化为 ISO 8601 格式，并保留毫秒
-    iso_timestamp = now.strftime('%Y-%m-%dT%H:%M:%S.%f')[:-3] + 'Z'
-    print(iso_timestamp)
