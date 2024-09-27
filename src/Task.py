@@ -202,8 +202,6 @@ class Task(object):
                     'facilityIdFilter': '1dae5b1c-e2b3-44a4-848f-df8ce2ddde42',
                     'startDate': begin_date,
                     'endDate': end_date,
-                    'startTime': '00:00',
-                    'endTime': '23:59',
                     'pageIndex': 1,
                     'pageSize': date_delta(begin_date, end_date) * 24
                 }
